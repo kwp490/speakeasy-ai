@@ -68,11 +68,37 @@ class CohereTranscribeEngine(SpeechEngine):
             device_map=device if device == "cuda" else "cpu",
             torch_dtype=torch.float16 if device == "cuda" else torch.float32,
         )
+
+        # The Cohere model's _ensure_decode_pool uses mp.get_context("fork")
+        # which is unavailable on Windows (only "spawn" is supported).  Patch
+        # the method to use the platform default context instead.
+        # Guard: the method only exists in the model's custom code; the
+        # built-in transformers class may not expose it.
+        if hasattr(self._model, '_ensure_decode_pool'):
+            _orig_ensure = self._model._ensure_decode_pool
+
+            def _patched_ensure_decode_pool(processor):
+                import multiprocessing as _mp
+                # Temporarily replace mp.get_context to return platform default
+                _real_get_ctx = _mp.get_context
+                _mp.get_context = lambda method=None: _real_get_ctx("spawn") if method == "fork" else _real_get_ctx(method)
+                try:
+                    return _orig_ensure(processor)
+                finally:
+                    _mp.get_context = _real_get_ctx
+
+            self._model._ensure_decode_pool = _patched_ensure_decode_pool
+
         log.info("Cohere Transcribe loaded on %s", device)
 
     def _transcribe_impl(self, audio_16k: np.ndarray, language: str,
-                          punctuation: bool = True) -> str:
+                          punctuation: bool = True,
+                          timeout: float = 30.0) -> str:
         import torch
+        from transformers.generation.stopping_criteria import (
+            MaxTimeCriteria,
+            StoppingCriteriaList,
+        )
 
         inputs = self._processor(
             audio_16k,
@@ -81,15 +107,40 @@ class CohereTranscribeEngine(SpeechEngine):
             language=language or "en",
             punctuation=punctuation,
         )
-        # Move input tensors to model device
-        inputs = {k: v.to(self._model.device) if hasattr(v, "to") else v
-                  for k, v in inputs.items()}
+        # Keep floating inputs aligned with the loaded model dtype so CUDA
+        # convolution layers do not see float32 features against float16 weights.
+        model_dtype = getattr(self._model, "dtype", None)
+        if model_dtype is None:
+            try:
+                model_dtype = next(self._model.parameters()).dtype
+            except (AttributeError, StopIteration):
+                model_dtype = None
+
+        converted_inputs = {}
+        for key, value in inputs.items():
+            if not hasattr(value, "to"):
+                converted_inputs[key] = value
+                continue
+
+            tensor = value.to(self._model.device)
+            if model_dtype is not None and torch.is_floating_point(tensor):
+                tensor = tensor.to(dtype=model_dtype)
+            converted_inputs[key] = tensor
+        inputs = converted_inputs
+
+        stopping = StoppingCriteriaList([MaxTimeCriteria(max_time=timeout)])
 
         with torch.no_grad():
-            output_ids = self._model.generate(**inputs, max_new_tokens=512)
+            output_ids = self._model.generate(
+                **inputs,
+                max_new_tokens=512,
+                stopping_criteria=stopping,
+            )
 
         text = self._processor.decode(output_ids, skip_special_tokens=True)
-        return text.strip() if isinstance(text, str) else str(text).strip()
+        if isinstance(text, (list, tuple)):
+            text = text[0] if text else ""
+        return str(text).strip()
 
     def unload(self) -> None:
         self._processor = None

@@ -255,6 +255,16 @@ class TestTransitiveDependenciesInSpec(unittest.TestCase):
         hidden = self._parse_hidden_imports()
         self.assertIn("torch", hidden)
 
+    def test_librosa_in_hiddenimports(self):
+        """librosa is required by CohereAsrFeatureExtractor and uses lazy loading."""
+        hidden = self._parse_hidden_imports()
+        self.assertIn("librosa", hidden)
+
+    def test_safetensors_in_hiddenimports(self):
+        """safetensors is used by processing_cohere_asr.py for model weight loading."""
+        hidden = self._parse_hidden_imports()
+        self.assertIn("safetensors", hidden)
+
     def test_transformers_data_files_collected(self):
         spec_text = self._read_spec()
         self.assertIn(
@@ -313,6 +323,7 @@ class TestSpecStripPatterns(unittest.TestCase):
     _ENGINE_DEPS = [
         "transformers", "torch", "torchaudio", "numpy",
         "huggingface_hub", "sentencepiece", "tokenizers",
+        "librosa", "scipy", "safetensors",
     ]
 
     def test_engine_deps_not_excluded(self):
@@ -394,6 +405,28 @@ class TestSpecStripPatterns(unittest.TestCase):
                 pat.search("cudnn_graph64_9.dll"),
                 f"r'{raw}' matches cudnn_graph64_9.dll",
             )
+
+
+class TestWindowsMultiprocessingCompat(unittest.TestCase):
+    """Cohere model uses mp.get_context('fork') which is Windows-incompatible.
+
+    The engine must patch this to 'spawn' before model.generate() is called."""
+
+    def test_cohere_engine_patches_fork_context(self):
+        """cohere_transcribe.py must contain the fork -> spawn patch."""
+        source = (_REPO_ROOT / "dictator" / "engine" / "cohere_transcribe.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            '"spawn"',
+            source,
+            "cohere_transcribe.py must patch 'fork' to 'spawn' for Windows",
+        )
+        self.assertIn(
+            "_ensure_decode_pool",
+            source,
+            "cohere_transcribe.py must patch _ensure_decode_pool",
+        )
 
 
 class TestDistOutputEssentials(unittest.TestCase):

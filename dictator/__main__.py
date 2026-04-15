@@ -180,6 +180,32 @@ def main() -> int:
 
     settings = Settings.load()
 
+    # ── Early model-presence check ───────────────────────────────────────
+    from dictator.model_downloader import model_ready
+
+    if not model_ready("cohere", settings.model_path):
+        log = logging.getLogger("dictator")
+        if getattr(sys, "frozen", False):
+            # Frozen (installed) build — the installer should have placed the
+            # model.  Show a blocking error so the problem is immediately
+            # visible rather than silently failing in the background.
+            log.error(
+                "Cohere model not found at %s (frozen build)", settings.model_path
+            )
+            QMessageBox.warning(
+                None,
+                "dictat0r.AI — Model Missing",
+                f"The Cohere Transcribe model was not found at:\n"
+                f"  {settings.model_path}\\cohere\n\n"
+                f"Please run the Cohere model setup from the Start Menu or\n"
+                f"reinstall dictat0r.AI to download the model.",
+            )
+        else:
+            log.warning(
+                "Cohere model not found at %s — the app will prompt for setup",
+                settings.model_path,
+            )
+
     window = MainWindow(settings)
     window.show()
 

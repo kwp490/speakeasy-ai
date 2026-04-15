@@ -23,7 +23,8 @@ class _StubEngine(SpeechEngine):
         self._model = MagicMock()
 
     def _transcribe_impl(self, audio_16k: np.ndarray, language: str,
-                          punctuation: bool = True) -> str:
+                          punctuation: bool = True,
+                          timeout: float = 30.0) -> str:
         return "hello world"
 
     def unload(self) -> None:

@@ -52,6 +52,8 @@ a = Analysis(
         'sentencepiece',
         'protobuf',
         'tokenizers',
+        'librosa',
+        'safetensors',
     ],
     hookspath=[],
     hooksconfig={},
@@ -60,7 +62,6 @@ a = Analysis(
         # GUI / image libraries not used
         'tkinter',
         'matplotlib',
-        'scipy',
         'pandas',
         'PIL',
         # Qt submodules not used (only QtWidgets/QtCore/QtGui needed)

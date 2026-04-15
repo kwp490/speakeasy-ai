@@ -15,6 +15,19 @@ $ErrorActionPreference = 'Stop'
 $AppDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Exe    = Join-Path $AppDir 'dictator.exe'
 
+if (-not (Test-Path $Exe)) {
+    Write-Host ''
+    Write-Host 'ERROR: dictator.exe not found at:' -ForegroundColor Red
+    Write-Host "  $Exe" -ForegroundColor Red
+    Write-Host ''
+    Write-Host 'This script is designed for the installed build.' -ForegroundColor Yellow
+    Write-Host 'If running from source, the app handles downloads directly.' -ForegroundColor Yellow
+    Write-Host ''
+    Write-Host 'Press any key to close...' -ForegroundColor Gray
+    $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+    exit 1
+}
+
 function Write-Banner {
     Write-Host ''
     Write-Host '════════════════════════════════════════════════════════════════' -ForegroundColor Cyan
@@ -52,9 +65,23 @@ function Start-Download {
         Write-Host ''
         Write-Host 'Downloading Cohere model — this may take several minutes...' -ForegroundColor Cyan
 
-        $process = Start-Process -FilePath $Exe `
-            -ArgumentList "download-model --token $token" `
-            -Wait -PassThru -NoNewWindow
+        try {
+            $process = Start-Process -FilePath $Exe `
+                -ArgumentList "download-model --token $token" `
+                -Wait -PassThru -NoNewWindow
+        } catch {
+            Write-Host ''
+            Write-Host "ERROR: Failed to launch download: $_" -ForegroundColor Red
+            Write-Host 'Would you like to try again?' -ForegroundColor White
+            $retry = Read-Host '[R]etry or [S]kip? (R/S)'
+            if ($retry -ne 'R' -and $retry -ne 'r') {
+                Write-Host ''
+                Write-Host 'Skipped. You can run this setup later:' -ForegroundColor Yellow
+                Write-Host "  $Exe download-model --token <YOUR_TOKEN>" -ForegroundColor Gray
+                return 1
+            }
+            continue
+        }
 
         switch ($process.ExitCode) {
             0 {

@@ -64,7 +64,7 @@ from .hotkeys import HotkeyManager
 from ._resource_monitor import ResourceMonitor
 from .pro_preset import ProPreset, bootstrap_presets, load_all_presets
 from .text_processor import TextProcessor, load_api_key_from_keyring
-from .workers import Worker
+from .workers import DedicatedWorkerPool, Worker
 
 log = logging.getLogger(__name__)
 
@@ -188,7 +188,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.settings = settings
         self._pool = QThreadPool.globalInstance()
-        self._engine_pool = QThreadPool(self)
+        self._engine_pool = DedicatedWorkerPool(self)
         self._engine_pool.setMaxThreadCount(1)
         self._engine_pool.setExpiryTimeout(-1)
 
@@ -264,7 +264,14 @@ class MainWindow(QMainWindow):
             self._log_ui(f"Microphone error: {exc}", error=True)
 
         # ── Begin model loading ──────────────────────────────────────────────
-        self._load_model()
+        if self._cohere_model_ready():
+            self._load_model()
+        else:
+            log.warning("Cohere model not found at %s", self.settings.model_path)
+            self._set_model_status(ModelStatus.ERROR)
+            self._log_ui("Model not found — setup required", error=True)
+            # Defer dialog to after the event loop starts so the window is visible
+            QTimer.singleShot(500, self._prompt_model_setup_on_start)
 
     # ═════════════════════════════════════════════════════════════════════════
     # UI CONSTRUCTION
@@ -792,6 +799,7 @@ class MainWindow(QMainWindow):
             text = self._engine.transcribe(
                 trimmed, self.settings.sample_rate, self.settings.language,
                 punctuation=self.settings.punctuation,
+                timeout=self.settings.inference_timeout,
             )
             return text
 
@@ -1143,6 +1151,20 @@ class MainWindow(QMainWindow):
 
     # ── Cohere model setup helpers ────────────────────────────────────────────
 
+    def _prompt_model_setup_on_start(self) -> None:
+        """Show the Cohere setup dialog at startup when model is missing."""
+        if self._prompt_cohere_setup():
+            # User ran setup successfully — try loading
+            if self._cohere_model_ready():
+                self._load_model()
+            else:
+                self._log_ui("Model still not found after setup", error=True)
+        else:
+            self._log_ui(
+                "Model setup declined — use Settings to configure later",
+                error=True,
+            )
+
     def _cohere_model_ready(self) -> bool:
         """Return True if Cohere model files are present locally."""
         from .model_downloader import model_ready
@@ -1185,8 +1207,59 @@ class MainWindow(QMainWindow):
         if msg.exec() != QMessageBox.StandardButton.Yes:
             return False
 
-        # Launch cohere-model-setup.ps1
+        # In source (non-frozen) mode, download directly — no elevation needed
+        # since dev-temp/ is user-writable and dictator.exe doesn't exist.
+        if not getattr(sys, "frozen", False):
+            return self._run_source_model_download()
+
+        # Launch cohere-model-setup.ps1 (frozen/installed builds)
         return self._run_cohere_setup_script()
+
+    def _run_source_model_download(self) -> bool:
+        """Collect a HuggingFace token via dialog and download directly."""
+        from PySide6.QtWidgets import QInputDialog
+
+        token, ok = QInputDialog.getText(
+            self,
+            "HuggingFace Token",
+            "Paste your HuggingFace access token\n"
+            "(Read permission, from https://huggingface.co/settings/tokens):",
+        )
+        if not ok or not token.strip():
+            self._log_ui("Model download cancelled — no token provided", error=True)
+            return False
+
+        self._log_ui("Downloading Cohere model (this may take several minutes)…")
+        # Force a repaint so the log message is visible before the blocking call
+        from PySide6.QtWidgets import QApplication
+        QApplication.processEvents()
+
+        from .model_downloader import download_model, EXIT_SUCCESS, EXIT_AUTH_REQUIRED
+
+        rc = download_model("cohere", self.settings.model_path, token=token.strip())
+        if rc == EXIT_SUCCESS:
+            self._log_ui("Cohere model downloaded successfully")
+            return True
+        elif rc == EXIT_AUTH_REQUIRED:
+            QMessageBox.warning(
+                self,
+                "Authentication Failed",
+                "The token was rejected. Possible causes:\n\n"
+                "• Invalid or expired token\n"
+                "• You have not accepted the license at:\n"
+                "  https://huggingface.co/CohereLabs/cohere-transcribe-03-2026\n\n"
+                "Please verify your token and repo access, then try again.",
+            )
+            return False
+        else:
+            QMessageBox.warning(
+                self,
+                "Download Failed",
+                "The model download failed. Check the log for details.\n\n"
+                "You can retry from Settings or run:\n"
+                "  uv run python -m dictator download-model --token <TOKEN>",
+            )
+            return False
 
     def _run_cohere_setup_script(self) -> bool:
         """Launch ``cohere-model-setup.ps1`` elevated and return True if
@@ -1449,7 +1522,12 @@ class MainWindow(QMainWindow):
         self._res_monitor.stop()
         self._hotkey_mgr.unregister()
         self._recorder.close_stream()
-        self._engine.unload()
+        engine_tasks_done = self._engine_pool.waitForDone(5000)
+        self._engine_pool.shutdown(wait=False, cancel_futures=False)
+        if engine_tasks_done:
+            self._engine.unload()
+        else:
+            log.warning("Skipping engine unload during shutdown because an engine task is still running")
         # Wait for any in-flight thread-pool workers (transcription, model
         # load, metrics poll) to finish so the process can exit cleanly.
         self._pool.waitForDone(5000)

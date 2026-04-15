@@ -27,6 +27,8 @@ dependencies = [
     "huggingface-hub>=0.34.0",
     "sentencepiece",
     "protobuf",
+    "librosa>=0.10",
+    "safetensors>=0.4",
 ]
 
 [project.optional-dependencies]

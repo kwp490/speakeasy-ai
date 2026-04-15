@@ -389,6 +389,16 @@ if ($Mode -eq 'Release') {
     }
     Write-Ok "Installed torch DLL bundle matches dist"
 
+    # -- Step 4c: Verify Cohere model is present --------------------------------
+    $installedCohereConfig = 'C:\Program Files\dictat0r.AI\models\cohere\config.json'
+    if (Test-Path $installedCohereConfig) {
+        Write-Ok "Cohere model found at C:\Program Files\dictat0r.AI\models\cohere"
+    } else {
+        Write-Warn "Cohere model NOT found at $installedCohereConfig"
+        Write-Info "The installer may not have downloaded the model (gated repo)."
+        Write-Info "The app will prompt for model setup on launch."
+    }
+
     # -- Step 5: Launch --------------------------------------------------------
     Write-Step "Launching dictat0r.AI (installed build)..."
 
@@ -463,6 +473,17 @@ if ($Mode -eq 'Source') {
         Write-Ok "Junction created to repo models"
     } else {
         Write-Warn "No model files found. The app may prompt you to download models."
+    }
+
+    # -- Validate model presence -----------------------------------------------
+    $cohereConfig = Join-Path $devModels 'cohere\config.json'
+    if (Test-Path $cohereConfig) {
+        Write-Ok "Cohere model found at $devModels\cohere"
+    } else {
+        Write-Warn "Cohere model NOT found at $devModels\cohere\config.json"
+        Write-Info "The app will prompt for model setup on launch."
+        Write-Info "To download manually:"
+        Write-Info "  uv run python -m dictator download-model --token <HF_TOKEN>"
     }
 
     # -- Launch from source ----------------------------------------------------
