@@ -564,7 +564,7 @@ class TestBackwardCompatibility(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             path = Path(td) / "settings.json"
             old_data = {
-                "engine": "granite",
+                "engine": "retired-engine",
                 "professional_mode": True,
                 "pro_fix_tone": False,
                 "pro_fix_grammar": True,

@@ -23,7 +23,6 @@ build/
 .venv/
 venv/
 env/
-canary-env/
 
 # IDE
 .vscode/

@@ -90,7 +90,7 @@ a = Analysis(
     noarchive=False,
 )
 
-# ── Strip unnecessary binaries ───────────────────────────────────────────────
+# ── Strip unnecessary bundled files ──────────────────────────────────────────
 import re as _re
 
 _STRIP_PATTERNS = [
@@ -102,17 +102,32 @@ _STRIP_PATTERNS = [
     _re.compile(r'Qt6OpenGL', _re.I),
     _re.compile(r'Qt6Svg', _re.I),
     _re.compile(r'opengl32sw', _re.I),
+    # Qt translations and plugins not used by the app
+    _re.compile(r'PySide6[\\/]translations[\\/]', _re.I),
+    _re.compile(r'PySide6[\\/]plugins[\\/]platforminputcontexts[\\/]qtvirtualkeyboardplugin', _re.I),
+    _re.compile(r'PySide6[\\/]plugins[\\/]networkinformation[\\/]qnetworklistmanager', _re.I),
+    _re.compile(r'PySide6[\\/]plugins[\\/]imageformats[\\/](?:qpdf|qicns|qtga|qtiff|qwbmp|qwebp)\.dll', _re.I),
     # Duplicate / dev binaries in torch/bin
     _re.compile(r'torch[\\/]bin[\\/]asmjit', _re.I),
     _re.compile(r'torch[\\/]bin[\\/]fbgemm', _re.I),
     _re.compile(r'protoc\.exe', _re.I),
 ]
 
+def _entry_name(entry):
+    return entry[0] if isinstance(entry, tuple) else str(entry)
+
+
 def _should_keep(entry):
-    name = entry[0] if isinstance(entry, tuple) else str(entry)
+    name = _entry_name(entry)
     return not any(p.search(name) for p in _STRIP_PATTERNS)
 
-a.binaries = [b for b in a.binaries if _should_keep(b)]
+
+def _filter_entries(entries):
+    return [entry for entry in entries if _should_keep(entry)]
+
+
+a.binaries = _filter_entries(a.binaries)
+a.datas = _filter_entries(a.datas)
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 

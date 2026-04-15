@@ -23,10 +23,16 @@
     Skip the pytest test suite (Phase 2).  Useful when iterating on
     non-test changes and you want a faster launch cycle.
 
+.PARAMETER Clean
+    In Release mode, force a fresh PyInstaller rebuild.
+    In Source mode, reset dev-temp config/logs/temp before launch so stale
+    development settings do not leak into the session.
+
 .EXAMPLE
     .\Test-Dictator.ps1                 # interactive menu
     .\Test-Dictator.ps1 -Mode Source    # skip menu, run from source
     .\Test-Dictator.ps1 -Mode Release   # skip menu, full release cycle
+    .\Test-Dictator.ps1 -Mode Source -Clean       # reset dev-temp state, run from source
     .\Test-Dictator.ps1 -Mode Source -SkipTests   # skip tests, run from source
     .\Test-Dictator.ps1 -Mode Release -Fast        # release build with fast compression
 
@@ -435,6 +441,17 @@ if ($Mode -eq 'Source') {
 
     $devTemp = Join-Path $RepoRoot 'dev-temp'
 
+    if ($Clean) {
+        Write-Step "Cleaning dev-temp state..."
+        foreach ($sub in @('config', 'logs', 'temp')) {
+            $path = Join-Path $devTemp $sub
+            if (Test-Path $path) {
+                Remove-Item $path -Recurse -Force
+            }
+        }
+        Write-Ok "dev-temp config/logs/temp reset"
+    }
+
     # -- Set up dev-temp directory ---------------------------------------------
     Write-Step "Setting up dev-temp environment..."
 
@@ -445,6 +462,19 @@ if ($Mode -eq 'Source') {
         }
     }
     Write-Ok "dev-temp directories ready at $devTemp"
+
+    $settingsPath = Join-Path $devTemp 'config\settings.json'
+    if (Test-Path $settingsPath) {
+        try {
+            $devSettings = Get-Content $settingsPath -Raw | ConvertFrom-Json
+            if ($null -ne $devSettings.hotkeys_enabled -and -not $devSettings.hotkeys_enabled) {
+                Write-Warn "Global hotkeys are disabled in dev-temp\config\settings.json"
+                Write-Info "Enable them in Settings or rerun Source mode with -Clean to reset dev-temp."
+            }
+        } catch {
+            Write-Warn "Could not inspect dev-temp\config\settings.json"
+        }
+    }
 
     # -- Model access via directory junction -----------------------------------
     $devModels = Join-Path $devTemp 'models'
@@ -509,7 +539,7 @@ if ($Mode -eq 'Source') {
     Write-Host "  =========================================" -ForegroundColor Green
     Write-Host "  Source test session ended." -ForegroundColor Green
     Write-Host "  =========================================" -ForegroundColor Green
-    Write-Info "dev-temp/ persists between runs. Delete it manually to reset."
+    Write-Info "dev-temp/ persists between runs. Use -Clean to reset config/logs/temp."
     Write-Host ""
 
     Exit-Script 0

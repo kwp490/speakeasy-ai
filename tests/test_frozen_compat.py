@@ -162,6 +162,7 @@ class TestHiddenImportsInSpec(unittest.TestCase):
             r"hiddenimports\s*=\s*\[(.*?)\]", spec_text, re.DOTALL
         )
         self.assertIsNotNone(match, "Could not find hiddenimports in dictator.spec")
+        assert match is not None
         entries = re.findall(r"['\"]([^'\"]+)['\"]", match.group(1))
         return set(entries)
 
@@ -311,6 +312,51 @@ class TestSpecStripPatterns(unittest.TestCase):
                     pat.search(lib),
                     f"Strip r'{pat.pattern}' would remove critical '{lib}'.",
                 )
+
+    def test_pyside_translations_are_stripped(self):
+        """Qt translation payload should be excluded from the frozen build."""
+        patterns = [re.compile(p, re.I) for p in self._parse_strip_patterns()]
+        self.assertTrue(
+            any(p.search(r"PySide6\translations\qtbase_en.qm") for p in patterns),
+            "PySide6 translations should be stripped from the frozen build.",
+        )
+
+    def test_unused_qt_plugins_are_stripped(self):
+        """Unused Qt plugins should be removed to keep the bundle small."""
+        patterns = [re.compile(p, re.I) for p in self._parse_strip_patterns()]
+        unused_plugins = [
+            r"PySide6\plugins\platforminputcontexts\qtvirtualkeyboardplugin.dll",
+            r"PySide6\plugins\networkinformation\qnetworklistmanager.dll",
+            r"PySide6\plugins\imageformats\qpdf.dll",
+            r"PySide6\plugins\imageformats\qicns.dll",
+            r"PySide6\plugins\imageformats\qtga.dll",
+            r"PySide6\plugins\imageformats\qtiff.dll",
+            r"PySide6\plugins\imageformats\qwbmp.dll",
+            r"PySide6\plugins\imageformats\qwebp.dll",
+        ]
+        for plugin in unused_plugins:
+            self.assertTrue(
+                any(p.search(plugin) for p in patterns),
+                f"dictator.spec should strip '{plugin}'.",
+            )
+
+    def test_windows_platform_plugin_not_stripped(self):
+        """The qwindows platform plugin is required for the Windows GUI."""
+        patterns = [re.compile(p, re.I) for p in self._parse_strip_patterns()]
+        for pat in patterns:
+            self.assertIsNone(
+                pat.search(r"PySide6\plugins\platforms\qwindows.dll"),
+                f"Strip r'{pat.pattern}' would remove qwindows.dll.",
+            )
+
+    def test_datas_filtered_with_strip_patterns(self):
+        """Spec should filter data payloads as well as binaries."""
+        spec_text = self._read_spec()
+        self.assertIn(
+            "a.datas = _filter_entries(a.datas)",
+            spec_text,
+            "dictator.spec must filter data entries with the strip patterns.",
+        )
 
     # ── Excluded modules must not break engine imports ───────────────────
 
