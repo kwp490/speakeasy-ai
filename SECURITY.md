@@ -4,7 +4,7 @@
 
 | Version | Supported |
 |---------|-----------|
-| 0.1.x   | Yes       |
+| 0.3.x   | Yes       |
 
 ## Reporting a Vulnerability
 
@@ -12,7 +12,7 @@ If you discover a security vulnerability in dictat0r.AI, please report it respon
 
 **Do NOT open a public GitHub issue for security vulnerabilities.**
 
-Instead, email the maintainer directly or use [GitHub's private vulnerability reporting](https://github.com/kwp490/dictat0r.AI/security/advisories/new).
+Instead, email the maintainer directly or use [GitHub's private vulnerability reporting](https://github.com/kwp490/dictat0rAI-v3/security/advisories/new).
 
 ### What to include
 
@@ -35,7 +35,6 @@ Instead, email the maintainer directly or use [GitHub's private vulnerability re
 - **`uv.exe` false positives**: Some anti-malware tools (e.g. Malwarebytes) may quarantine `uv.exe` during source installs. If this happens, restore it and add it to your allow list. [uv](https://github.com/astral-sh/uv) is a widely used open-source Python package manager.
 - **API key handling (Professional Mode)**: OpenAI API keys entered in Settings are held in memory only by default and are **never** written to `settings.json` or any log file. If "Remember API key" is enabled, the key is stored via Windows Credential Manager (protected by Windows DPAPI encryption). API keys are never displayed in the UI log panel, and all error messages are sanitized to redact key content.
 - **Single-instance mutex**: A Windows named mutex (`Global\dictat0r.AIMutex`) prevents multiple dictat0r.AI processes from running simultaneously, avoiding resource conflicts.
-- **Cohere Bridge IPC**: The subprocess bridge (`CohereBridgeEngine`) communicates with the Cohere worker via JSON lines over stdin/stdout — local only, no network exposure.
 - **Blackwell workarounds**: On RTX 50-series GPUs, environment variables `CUDA_LAUNCH_BLOCKING` and `TORCHDYNAMO_DISABLE` are set automatically for stability. These are security-neutral but modify the process environment.
 
 ## Privacy & Data Handling
@@ -48,7 +47,7 @@ Instead, email the maintainer directly or use [GitHub's private vulnerability re
 
 **Network**: dictat0r.AI makes network requests **only** in two scenarios:
 
-1. **Model downloads** — to HuggingFace Hub (public repos, no authentication required) when downloading speech engine models.
+1. **Model downloads** — to HuggingFace Hub (authentication required for the gated Cohere Transcribe model) when downloading the speech engine model.
 2. **Professional Mode** (when enabled) — transcribed text is sent to the OpenAI API (`api.openai.com`) for tone, grammar, and punctuation cleanup. This requires a user-provided API key and is **opt-in only** — disabled by default. No audio data is sent; only the transcribed text string is transmitted.
 
 No telemetry, analytics, or usage data is collected or transmitted.

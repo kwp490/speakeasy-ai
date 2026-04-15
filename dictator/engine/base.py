@@ -45,7 +45,7 @@ class SpeechEngine(ABC):
 
     @abstractmethod
     def _transcribe_impl(self, audio_16k: np.ndarray, language: str,
-                          keywords: str = "") -> str:
+                          punctuation: bool = True) -> str:
         """Engine-specific transcription of 16 kHz mono float32 audio."""
 
     @abstractmethod
@@ -60,14 +60,14 @@ class SpeechEngine(ABC):
         return self._model is not None
 
     def transcribe(self, audio: np.ndarray, sample_rate: int,
-                    language: str = "en", keywords: str = "") -> str:
+                    language: str = "en", punctuation: bool = True) -> str:
         """Resample to 16 kHz, guard empty/unloaded, then delegate."""
         if self._model is None:
             raise RuntimeError(f"{self.name} model not loaded")
         audio_16k = ensure_16khz(audio, sample_rate)
         if len(audio_16k) == 0:
             return ""
-        return self._transcribe_impl(audio_16k, language, keywords=keywords)
+        return self._transcribe_impl(audio_16k, language, punctuation=punctuation)
 
     def _release_model(self) -> None:
         """Delete model reference and free GPU memory."""

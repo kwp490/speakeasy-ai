@@ -107,11 +107,6 @@ class TestSettingsDialogProModeRemoved(unittest.TestCase):
 
     # ── Core settings still present ──────────────────────────────────────
 
-    def test_engine_group_in_build_ui(self):
-        """_build_ui must still contain Model Engine group."""
-        src = self._get_method_source("_build_ui")
-        self.assertIn("Model Engine", src)
-
     def test_audio_group_in_build_ui(self):
         """_build_ui must still contain Audio group."""
         src = self._get_method_source("_build_ui")

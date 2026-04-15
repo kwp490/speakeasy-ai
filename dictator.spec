@@ -1,6 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 """
-PyInstaller spec for dictat0r.AI — Granite + Cohere engines (transformers/torch).
+PyInstaller spec for dictat0r.AI — Cohere Transcribe engine (transformers/torch).
 
 Build: pyinstaller dictator.spec
 Output: dist/dictator/dictator.exe (onedir)
@@ -16,12 +16,9 @@ binaries = collect_dynamic_libs('sounddevice')
 # Collect all native libs from torch so shm.dll and its deps are bundled
 binaries += collect_dynamic_libs('torch')
 
-# Collect only transformers data files needed by our two engines.
-# The blanket collect_data_files('transformers') pulls in data for all 535+
-# model architectures; we only use granite_speech, cohere_asr, and auto.
+# Collect only transformers data files needed by Cohere ASR engine.
 datas = []
 for _subpkg in ('transformers', 'transformers.models.auto',
-                 'transformers.models.granite_speech',
                  'transformers.models.cohere_asr'):
     try:
         datas += collect_data_files(_subpkg, include_py_files=False)

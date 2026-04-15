@@ -273,27 +273,17 @@ class TestTorchTorchaudioCompatibility(unittest.TestCase):
 
 
 class TestInstallerHandlesGatedRepos(unittest.TestCase):
-    """dictator-setup.iss must NOT download Cohere and must bundle the Cohere setup script."""
+    """dictator-setup.iss must handle the Cohere gated model and bundle the setup script."""
 
     @classmethod
     def setUpClass(cls):
         cls.iss_text = _read("installer/dictator-setup.iss")
 
-    def test_iss_checks_exit_code_2_for_granite(self):
-        """The ISS script must check ResultCode after Granite download."""
+    def test_iss_downloads_cohere(self):
+        """The ISS script must download the Cohere model via download-model."""
         self.assertIsNotNone(
-            re.search(r"download-model --engine granite.*?ResultCode",
-                       self.iss_text, re.DOTALL),
-            "dictator-setup.iss does not check ResultCode "
-            "after the Granite model download.",
-        )
-
-    def test_iss_does_not_download_cohere(self):
-        """The ISS script must NOT attempt to download the Cohere model."""
-        self.assertIsNone(
-            re.search(r"download-model --engine cohere", self.iss_text),
-            "dictator-setup.iss must not contain 'download-model --engine cohere' — "
-            "Cohere downloads are handled by the separate cohere-model-setup.ps1 script.",
+            re.search(r"download-model", self.iss_text),
+            "dictator-setup.iss must contain a download-model invocation.",
         )
 
     def test_iss_bundles_cohere_setup_script(self):

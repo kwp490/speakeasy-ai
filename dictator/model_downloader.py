@@ -1,8 +1,7 @@
 """
 Model downloader using huggingface_hub.
 
-Downloads Cohere Transcribe and IBM Granite Speech models
-from HuggingFace Hub to local storage.
+Downloads the Cohere Transcribe model from HuggingFace Hub to local storage.
 """
 
 from __future__ import annotations
@@ -20,11 +19,9 @@ EXIT_AUTH_REQUIRED = 2  # gated repo — anonymous access denied
 # ── Model constants (single source of truth) ─────────────────────────────────
 
 COHERE_REPO_ID = "CohereLabs/cohere-transcribe-03-2026"
-GRANITE_REPO_ID = "ibm-granite/granite-4.0-1b-speech"
 
 _ENGINE_REPO_MAP = {
     "cohere": COHERE_REPO_ID,
-    "granite": GRANITE_REPO_ID,
 }
 
 

@@ -59,6 +59,7 @@ from ._constants import (
 )
 from .config import DEFAULT_LOG_DIR, DEFAULT_PRESETS_DIR, Settings
 from .engine import ENGINES
+from .engine.cohere_transcribe import CohereTranscribeEngine
 from .hotkeys import HotkeyManager
 from ._resource_monitor import ResourceMonitor
 from .pro_preset import ProPreset, bootstrap_presets, load_all_presets
@@ -195,25 +196,7 @@ class MainWindow(QMainWindow):
         if engine is not None:
             self._engine = engine
         else:
-            engine_cls = ENGINES.get(settings.engine)
-            if engine_cls is None:
-                available = list(ENGINES.keys())
-                if available:
-                    fallback = available[0]
-                    log.warning(
-                        "Engine '%s' not available; falling back to '%s'. "
-                        "Installed engines: %s",
-                        settings.engine, fallback, available,
-                    )
-                    settings.engine = fallback
-                    settings.save()
-                    engine_cls = ENGINES[fallback]
-                else:
-                    raise RuntimeError(
-                        "No speech engines available. Re-install the "
-                        "application or check that dependencies are intact."
-                    )
-            self._engine = engine_cls()
+            self._engine = CohereTranscribeEngine()
 
         # ── Audio ────────────────────────────────────────────────────────────
         self._recorder = AudioRecorder(
@@ -374,7 +357,7 @@ class MainWindow(QMainWindow):
         eg_layout = QVBoxLayout()
 
         status_row = QHBoxLayout()
-        self._lbl_engine = QLabel(f"Engine: {self._engine.name}")
+        self._lbl_engine = QLabel("Engine: Cohere Transcribe")
         self._lbl_model_status = QLabel("Status: Not loaded")
         self._lbl_engine.setFont(QFont("Segoe UI", 10))
         self._lbl_model_status.setFont(QFont("Segoe UI", 10))
@@ -808,7 +791,7 @@ class MainWindow(QMainWindow):
             # Transcribe in-process
             text = self._engine.transcribe(
                 trimmed, self.settings.sample_rate, self.settings.language,
-                keywords=self.settings.keywords,
+                punctuation=self.settings.punctuation,
             )
             return text
 
@@ -1136,7 +1119,6 @@ class MainWindow(QMainWindow):
     def _on_open_settings(self) -> None:
         from .settings_dialog import SettingsDialog
 
-        old_engine = self.settings.engine
         old_model_path = self.settings.model_path
         old_device = self.settings.device
 
@@ -1144,40 +1126,19 @@ class MainWindow(QMainWindow):
         if dlg.exec() == SettingsDialog.DialogCode.Accepted:
             self._apply_settings()
 
-            # If engine, model path, or device changed, prompt to reload
+            # If model path or device changed, prompt to reload
             if (
-                self.settings.engine != old_engine
-                or self.settings.model_path != old_model_path
+                self.settings.model_path != old_model_path
                 or self.settings.device != old_device
             ):
-                # Cohere model requires gated access — check before switching
-                if (
-                    self.settings.engine == "cohere"
-                    and self.settings.engine != old_engine
-                    and not self._cohere_model_ready()
-                ):
-                    if not self._prompt_cohere_setup():
-                        # User declined or setup failed — revert engine
-                        self.settings.engine = old_engine
-                        self.settings.save()
-                        self._log_ui("Cohere setup cancelled — engine unchanged")
-                        return
-
                 reply = QMessageBox.question(
                     self,
                     "Reload Model?",
-                    "Engine or model path changed. Reload model now?",
+                    "Model path or device changed. Reload model now?",
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                     QMessageBox.StandardButton.Yes,
                 )
                 if reply == QMessageBox.StandardButton.Yes:
-                    # If engine changed, swap engine instance
-                    if self.settings.engine != old_engine:
-                        engine_cls = ENGINES.get(self.settings.engine)
-                        if engine_cls:
-                            self._engine.unload()
-                            self._engine = engine_cls()
-                            self._lbl_engine.setText(f"Engine: {self._engine.name}")
                     self._on_reload_model()
 
     # ── Cohere model setup helpers ────────────────────────────────────────────

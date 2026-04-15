@@ -3,7 +3,7 @@ dictat0r.AI — entry point.
 
 Usage:
     python -m dictator                                          # launch GUI
-    python -m dictator download-model --engine granite          # download model
+    python -m dictator download-model --token hf_...            # download model
     python -m dictator --version                                # print version
 
 Handles single-instance guard, logging setup, and Qt application lifecycle.
@@ -112,13 +112,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     sub = parser.add_subparsers(dest="command")
 
-    dl = sub.add_parser("download-model", help="Download model weights")
-    dl.add_argument(
-        "--engine",
-        choices=["granite", "cohere"],
-        required=True,
-        help="Engine whose model to download",
-    )
+    dl = sub.add_parser("download-model", help="Download Cohere Transcribe model")
     dl.add_argument(
         "--target-dir",
         default=None,
@@ -127,7 +121,7 @@ def _build_parser() -> argparse.ArgumentParser:
     dl.add_argument(
         "--token",
         default=None,
-        help="HuggingFace access token for gated model downloads",
+        help="HuggingFace access token for gated model download",
     )
 
     return parser
@@ -141,7 +135,7 @@ def _cmd_download_model(args: argparse.Namespace) -> int:
     target_dir = args.target_dir or DEFAULT_MODELS_DIR
     os.makedirs(target_dir, exist_ok=True)
 
-    return download_model(args.engine, target_dir, token=args.token)
+    return download_model("cohere", target_dir, token=args.token)
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────

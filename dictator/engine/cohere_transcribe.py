@@ -71,7 +71,7 @@ class CohereTranscribeEngine(SpeechEngine):
         log.info("Cohere Transcribe loaded on %s", device)
 
     def _transcribe_impl(self, audio_16k: np.ndarray, language: str,
-                          keywords: str = "") -> str:
+                          punctuation: bool = True) -> str:
         import torch
 
         inputs = self._processor(
@@ -79,6 +79,7 @@ class CohereTranscribeEngine(SpeechEngine):
             sampling_rate=16000,
             return_tensors="pt",
             language=language or "en",
+            punctuation=punctuation,
         )
         # Move input tensors to model device
         inputs = {k: v.to(self._model.device) if hasattr(v, "to") else v

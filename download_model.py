@@ -5,8 +5,7 @@ Model downloader for dictat0r.AI.
 Standalone script that can also be invoked via ``dictator download-model``.
 
 Usage:
-    python download_model.py --engine granite --target-dir "C:\\Program Files\\dictat0r.AI\\models"
-    python download_model.py --engine cohere --target-dir "C:\\Program Files\\dictat0r.AI\\models"
+    python download_model.py --token hf_... --target-dir "C:\\Program Files\\dictat0r.AI\\models"
 """
 
 from __future__ import annotations
@@ -18,12 +17,11 @@ import sys
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Download local AI models for dictat0r.AI.")
+    parser = argparse.ArgumentParser(description="Download the Cohere Transcribe model for dictat0r.AI.")
     parser.add_argument(
-        "--engine",
-        choices=["granite", "cohere"],
-        required=True,
-        help="Engine whose model to download",
+        "--token",
+        default=None,
+        help="HuggingFace access token (required for gated model)",
     )
     parser.add_argument(
         "--target-dir",
@@ -40,7 +38,7 @@ def main() -> int:
     os.makedirs(target_dir, exist_ok=True)
 
     from dictator.model_downloader import download_model
-    return download_model(args.engine, target_dir)
+    return download_model("cohere", target_dir, token=args.token)
 
 
 if __name__ == "__main__":

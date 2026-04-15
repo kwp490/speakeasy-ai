@@ -84,21 +84,6 @@ class TestStdioSafetyPatches(unittest.TestCase):
             "__main__.py must call multiprocessing.freeze_support() for Windows spawn/frozen workers",
         )
 
-    def test_granite_worker_adds_dll_directory(self):
-        """Granite child process must add torch/lib to DLL search path for frozen builds."""
-        source = (_DICTATOR_PKG / "engine" / "granite_speech.py").read_text(encoding="utf-8")
-        self.assertIn(
-            "os.add_dll_directory",
-            source,
-            "granite_speech.py worker must call os.add_dll_directory() for torch/lib "
-            "in frozen builds so shm.dll can find its native dependencies",
-        )
-        self.assertIn(
-            "_MEIPASS",
-            source,
-            "granite_speech.py worker must check sys._MEIPASS to detect frozen builds",
-        )
-
     def test_runtime_hook_exists(self):
         """A runtime hook must add _MEIPASS to DLL search paths before torch loads."""
         hook = _DICTATOR_PKG / "_runtime_hook_dll.py"
@@ -121,7 +106,6 @@ class TestAllModulesImportable(unittest.TestCase):
 
     _SKIP_MODULES = frozenset({
         "dictator.engine.cohere_transcribe",
-        "dictator.engine.granite_speech",
     })
 
     def test_import_all_modules(self):

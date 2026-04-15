@@ -23,7 +23,7 @@ class _StubEngine(SpeechEngine):
         self._model = MagicMock()
 
     def _transcribe_impl(self, audio_16k: np.ndarray, language: str,
-                          keywords: str = "") -> str:
+                          punctuation: bool = True) -> str:
         return "hello world"
 
     def unload(self) -> None:
@@ -83,14 +83,8 @@ class TestEngineRegistryHasEngines(unittest.TestCase):
     def test_engines_dict_not_empty(self):
         from dictator.engine import ENGINES
         self.assertIsInstance(ENGINES, dict)
-        # At minimum, both should be registered when transformers is installed
-        self.assertIn("granite", ENGINES)
         self.assertIn("cohere", ENGINES)
-
-    def test_granite_is_speech_engine(self):
-        from dictator.engine import ENGINES
-        from dictator.engine.base import SpeechEngine
-        self.assertTrue(issubclass(ENGINES["granite"], SpeechEngine))
+        self.assertEqual(len(ENGINES), 1)
 
     def test_cohere_is_speech_engine(self):
         from dictator.engine import ENGINES

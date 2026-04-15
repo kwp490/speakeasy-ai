@@ -10,7 +10,6 @@ from dictator.model_downloader import (
     EXIT_AUTH_REQUIRED,
     EXIT_FAILURE,
     EXIT_SUCCESS,
-    GRANITE_REPO_ID,
     _ENGINE_REPO_MAP,
     _is_gated_repo_error,
     download_model,
@@ -22,15 +21,13 @@ class TestModelConstants(unittest.TestCase):
     """Model constants must be consistent and non-empty."""
 
     def test_repo_ids_are_valid(self):
-        for repo_id in (COHERE_REPO_ID, GRANITE_REPO_ID):
-            self.assertIn("/", repo_id)
-            self.assertFalse(repo_id.startswith("http"))
+        self.assertIn("/", COHERE_REPO_ID)
+        self.assertFalse(COHERE_REPO_ID.startswith("http"))
 
     def test_engine_repo_map(self):
-        self.assertIn("granite", _ENGINE_REPO_MAP)
         self.assertIn("cohere", _ENGINE_REPO_MAP)
-        self.assertEqual(_ENGINE_REPO_MAP["granite"], GRANITE_REPO_ID)
         self.assertEqual(_ENGINE_REPO_MAP["cohere"], COHERE_REPO_ID)
+        self.assertEqual(len(_ENGINE_REPO_MAP), 1)
 
 
 class TestModelReady(unittest.TestCase):
@@ -38,15 +35,15 @@ class TestModelReady(unittest.TestCase):
 
     def test_ready_when_config_exists(self):
         with tempfile.TemporaryDirectory() as d:
-            engine_dir = os.path.join(d, "granite")
+            engine_dir = os.path.join(d, "cohere")
             os.makedirs(engine_dir)
             with open(os.path.join(engine_dir, "config.json"), "w") as f:
                 f.write("{}")
-            self.assertTrue(model_ready("granite", d))
+            self.assertTrue(model_ready("cohere", d))
 
     def test_not_ready_when_no_dir(self):
         with tempfile.TemporaryDirectory() as d:
-            self.assertFalse(model_ready("granite", d))
+            self.assertFalse(model_ready("cohere", d))
 
     def test_not_ready_when_empty_dir(self):
         with tempfile.TemporaryDirectory() as d:
@@ -113,11 +110,11 @@ class TestDownloadModelExitCodes(unittest.TestCase):
 
     def test_already_downloaded_returns_success(self):
         with tempfile.TemporaryDirectory() as d:
-            engine_dir = os.path.join(d, "granite")
+            engine_dir = os.path.join(d, "cohere")
             os.makedirs(engine_dir)
             with open(os.path.join(engine_dir, "config.json"), "w") as f:
                 f.write("{}")
-            self.assertEqual(download_model("granite", d), EXIT_SUCCESS)
+            self.assertEqual(download_model("cohere", d), EXIT_SUCCESS)
 
     def test_gated_repo_returns_auth_required(self):
         """A gated-repo error from snapshot_download must yield EXIT_AUTH_REQUIRED."""
@@ -144,7 +141,7 @@ class TestDownloadModelExitCodes(unittest.TestCase):
         mock_hf.snapshot_download.return_value = "/fake/path"
         with patch.dict("sys.modules", {"huggingface_hub": mock_hf}):
             with tempfile.TemporaryDirectory() as d:
-                download_model("granite", d)
+                download_model("cohere", d)
                 call_kwargs = mock_hf.snapshot_download.call_args
                 self.assertIn("token", call_kwargs.kwargs,
                     "snapshot_download must receive an explicit 'token' keyword argument")

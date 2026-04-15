@@ -29,12 +29,12 @@ class Settings:
     """All user-configurable settings with sensible defaults."""
 
     # ── Model Engine ──────────────────────────────────────────────────────────
-    engine: str = "granite"
+    engine: str = "cohere"
     model_path: str = DEFAULT_MODELS_DIR
     device: str = "cuda"
     language: str = "en"
     inference_timeout: int = 30
-    keywords: str = ""
+    punctuation: bool = True
 
     # ── Dictation UX ─────────────────────────────────────────────────────────
     auto_copy: bool = True
@@ -58,14 +58,14 @@ class Settings:
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
-    _VALID_ENGINES = {"granite", "cohere"}
+    _VALID_ENGINES = {"cohere"}
     _VALID_DEVICES = {"cuda", "cpu"}
 
     def validate(self) -> None:
         """Clamp/correct invalid field values to safe defaults."""
         if self.engine not in self._VALID_ENGINES:
-            log.warning("Unknown engine '%s'; falling back to 'granite'", self.engine)
-            self.engine = "granite"
+            log.warning("Unknown engine '%s'; falling back to 'cohere'", self.engine)
+            self.engine = "cohere"
         if self.model_path != DEFAULT_MODELS_DIR and not os.path.isdir(self.model_path):
             log.warning("model_path '%s' does not exist; resetting to default", self.model_path)
             self.model_path = DEFAULT_MODELS_DIR

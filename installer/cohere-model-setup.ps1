@@ -1,9 +1,9 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Cohere Transcribe Model Setup
 #
-# This script guides the user through downloading the gated Cohere
-# Transcribe model from HuggingFace.  It is launched by the main
-# dictat0r.AI installer when the user selects "Granite + Cohere".
+# This script guides the user through downloading the Cohere Transcribe
+# model from HuggingFace.  It can be launched standalone to (re)download
+# the model after installation.
 #
 # The HuggingFace token is used for this single download only.
 # It is NOT stored anywhere — not in settings, not on disk, not in
@@ -45,7 +45,7 @@ function Start-Download {
         if ($token -eq 'skip' -or $token -eq '') {
             Write-Host ''
             Write-Host 'Skipped. You can run this setup later:' -ForegroundColor Yellow
-            Write-Host "  $Exe download-model --engine cohere --token <YOUR_TOKEN>" -ForegroundColor Gray
+            Write-Host "  $Exe download-model --token <YOUR_TOKEN>" -ForegroundColor Gray
             return 1
         }
 
@@ -53,7 +53,7 @@ function Start-Download {
         Write-Host 'Downloading Cohere model — this may take several minutes...' -ForegroundColor Cyan
 
         $process = Start-Process -FilePath $Exe `
-            -ArgumentList "download-model --engine cohere --token $token" `
+            -ArgumentList "download-model --token $token" `
             -Wait -PassThru -NoNewWindow
 
         switch ($process.ExitCode) {
@@ -83,7 +83,7 @@ function Start-Download {
         if ($retry -ne 'R' -and $retry -ne 'r') {
             Write-Host ''
             Write-Host 'Skipped. You can run this setup later:' -ForegroundColor Yellow
-            Write-Host "  $Exe download-model --engine cohere --token <YOUR_TOKEN>" -ForegroundColor Gray
+            Write-Host "  $Exe download-model --token <YOUR_TOKEN>" -ForegroundColor Gray
             return 1
         }
     }

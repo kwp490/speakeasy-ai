@@ -6,26 +6,28 @@ Press a hotkey, speak, and your transcribed text is pasted into the active windo
 
 ## Download & Install
 
-> **[Download dictator-AI-Setup-0.1.0.exe](https://github.com/kwp490/dictat0r.AI/releases/latest)**
+> **[Download dictator-AI-Setup-0.3.0.exe](https://github.com/kwp490/dictat0rAI-v3/releases/latest)**
 >
 > Double-click the installer and follow the prompts. No Python, no command line required.
 
 The installer will:
 
 1. Extract application files to `C:\Program Files\dictat0r.AI`
-2. Download both speech engine models from HuggingFace
-3. Create desktop and Start Menu shortcuts
-4. Configure Windows Defender exclusions
+2. Prompt for your HuggingFace API token (required for gated model access)
+3. Download the Cohere Transcribe speech model from HuggingFace
+4. Create desktop and Start Menu shortcuts
+5. Configure Windows Defender exclusions
 
-**Requirements:** Windows 10/11 (64-bit), NVIDIA GPU (RTX 30-series or newer, 6+ GB VRAM recommended), NVIDIA Driver 525+.
+**Requirements:** Windows 10/11 (64-bit), NVIDIA GPU (RTX 30-series or newer, 6+ GB VRAM recommended), NVIDIA Driver 525+, [HuggingFace account](https://huggingface.co/join) with access to [CohereLabs/cohere-transcribe-03-2026](https://huggingface.co/CohereLabs/cohere-transcribe-03-2026).
 
 ## Features
 
-- **Two speech engines**: IBM Granite 4.0 1B Speech and Cohere Transcribe 03-2026 — switch between them at any time
+- **Cohere Transcribe 03-2026**: High-accuracy 2B-parameter ASR model, 14 languages, ~5 GB VRAM
 - **Professional Mode**: AI-powered text cleanup via OpenAI API with a preset system — 5 built-in presets, custom presets, domain vocabulary preservation, and per-preset model selection
+- **Punctuation control**: Enable or disable automatic punctuation in transcription output
 - **Global hotkeys**: Start/stop recording from any application (configurable bindings)
 - **Auto-paste**: Transcribed text goes directly to your active window
-- **GPU-accelerated**: Both engines leverage NVIDIA CUDA for fast inference
+- **GPU-accelerated**: Leverages NVIDIA CUDA for fast inference
 - **Microphone selection**: Choose a specific input device or use the system default
 - **Sleep/wake recovery**: Hotkeys automatically re-register after Windows resume from sleep
 - **Single-instance guard**: Prevents multiple dictat0r.AI processes from running simultaneously
@@ -42,13 +44,12 @@ For developers or users who want to run from source:
 irm https://astral.sh/uv/install.ps1 | iex
 
 # 2. Clone and install
-git clone https://github.com/kwp490/dictat0r.AI.git
-cd dictat0r.AI
+git clone https://github.com/kwp490/dictat0rAI-v3.git
+cd dictat0rAI-v3
 uv sync
 
-# 3. Download models and launch
-uv run dictator download-model --engine granite
-uv run dictator download-model --engine cohere
+# 3. Download the model and launch
+uv run dictator download-model --token YOUR_HF_TOKEN
 uv run dictator
 ```
 
@@ -63,10 +64,11 @@ Set-ExecutionPolicy Bypass -Scope Process -Force
 
 | Setting              | Default                                  | Description                                              |
 |----------------------|------------------------------------------|----------------------------------------------------------|
-| `engine`             | `granite`                                | Speech engine: `granite` or `cohere`                     |
+| `engine`             | `cohere`                                 | Speech engine (Cohere Transcribe)                        |
 | `model_path`         | `C:\Program Files\dictat0r.AI\models`    | Directory for model weights                              |
 | `device`             | `cuda`                                   | Inference device: `cuda` or `cpu`                        |
 | `language`           | `en`                                     | Language code                                            |
+| `punctuation`        | `true`                                   | Enable automatic punctuation in transcription            |
 | `inference_timeout`  | `30`                                     | Max seconds per transcription                            |
 | `auto_copy`          | `true`                                   | Auto-copy transcription to clipboard                     |
 | `auto_paste`         | `true`                                   | Auto-paste via Ctrl+V after transcription                |
@@ -137,14 +139,12 @@ You can also create, duplicate, and delete custom presets. Each preset has its o
 │ │  wake safe)│  │  GPU temp)       │       │
 │ └────────────┘  └──────────────────┘       │
 ├────────────────────────────────────────────┤
-│   Engine Abstraction (transformers)        │
-│   ┌──────────────┐ ┌───────────────────┐   │
-│   │ Granite      │ │ Cohere Transcribe │   │
-│   │ (1B params,  │ │ (2B params,       │   │
-│   │  ~3 GB VRAM) │ │  ~5 GB VRAM)      │   │
-│   └──────┬───────┘ └────────┬──────────┘   │
-│          │                  │              │
-│          ▼                  ▼              │
+│   Engine: Cohere Transcribe (transformers) │
+│   ┌───────────────────────────────────┐    │
+│   │ Cohere Transcribe 03-2026         │    │
+│   │ (2B params, ~5 GB VRAM, 14 langs) │    │
+│   └────────────────┬──────────────────┘    │
+│                    ▼                       │
 │        NVIDIA GPU (CUDA) / CPU             │
 ├────────────────────────────────────────────┤
 │   Professional Mode (optional)             │
@@ -157,17 +157,19 @@ You can also create, duplicate, and delete custom presets. Each preset has its o
 └────────────────────────────────────────────┘
 ```
 
-## Model Comparison
+## Supported Languages
 
-|                      | IBM Granite 4.0 1B Speech                        | Cohere Transcribe 03-2026                         |
-| -------------------- | ------------------------------------------------ | ------------------------------------------------- |
-| **HuggingFace**      | `ibm-granite/granite-4.0-1b-speech`              | `CohereLabs/cohere-transcribe-03-2026`            |
-| **Parameters**       | 1B                                               | 2B                                                |
-| **VRAM**             | ~3 GB                                            | ~5 GB                                             |
-| **WER**              | 5.52                                             | 5.42                                              |
-| **Languages**        | 7 (en, fr, de, es, pt, ja)                       | 14 (en, fr, de, it, es, pt, el, nl, pl, zh, ja, ko, vi, ar) |
-| **License**          | Apache 2.0                                       | Apache 2.0                                        |
-| **Speed**            | Very fast (smaller model)                        | Fast                                              |
+Cohere Transcribe supports 14 languages:
+
+| Code | Language   | Code | Language    |
+|------|------------|------|-------------|
+| `en` | English    | `el` | Greek       |
+| `fr` | French     | `nl` | Dutch       |
+| `de` | German     | `pl` | Polish      |
+| `it` | Italian    | `zh` | Chinese     |
+| `es` | Spanish    | `ja` | Japanese    |
+| `pt` | Portuguese | `ko` | Korean      |
+| `vi` | Vietnamese | `ar` | Arabic      |
 
 ## Antivirus & Anti-Malware Notes
 
@@ -178,4 +180,4 @@ Some antivirus products may flag the PyInstaller-packaged `.exe` as suspicious. 
 
 ## License
 
-Apache License 2.0. See [LICENSE](LICENSE).
+[MIT](LICENSE)

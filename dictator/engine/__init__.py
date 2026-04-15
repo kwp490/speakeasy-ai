@@ -1,6 +1,4 @@
-"""
-Engine registry — registers Granite and Cohere speech engines.
-"""
+"""Engine registry — registers the Cohere Transcribe speech engine."""
 
 from __future__ import annotations
 
@@ -11,13 +9,6 @@ from typing import Dict, Type
 log = logging.getLogger(__name__)
 
 ENGINES: Dict[str, Type] = {}
-
-# Both engines use transformers + torch — register unconditionally.
-try:
-    from .granite_speech import GraniteSpeechEngine
-    ENGINES["granite"] = GraniteSpeechEngine
-except ImportError:
-    log.debug("Granite engine unavailable (transformers not installed)")
 
 try:
     from .cohere_transcribe import CohereTranscribeEngine

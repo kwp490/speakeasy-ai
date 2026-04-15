@@ -18,12 +18,14 @@ class SettingsConfigTests(unittest.TestCase):
                 model_path=str(models_dir),
                 device="cpu",
                 auto_copy=False,
+                punctuation=False,
             )
             settings.save(config_path)
 
             loaded = Settings.load(config_path)
 
             self.assertEqual(loaded.engine, "cohere")
+            self.assertFalse(loaded.punctuation)
             self.assertEqual(loaded.model_path, str(models_dir))
             self.assertEqual(loaded.device, "cpu")
             self.assertFalse(loaded.auto_copy)
@@ -34,7 +36,7 @@ class SettingsConfigTests(unittest.TestCase):
             config_path.write_text(
                 json.dumps(
                     {
-                        "engine": "granite",
+                        "engine": "cohere",
                         "language": "en",
                         "unexpected": "ignore-me",
                     }
@@ -44,18 +46,19 @@ class SettingsConfigTests(unittest.TestCase):
 
             loaded = Settings.load(config_path)
 
-            self.assertEqual(loaded.engine, "granite")
+            self.assertEqual(loaded.engine, "cohere")
             self.assertEqual(loaded.language, "en")
             self.assertFalse(hasattr(loaded, "unexpected"))
 
     def test_defaults(self):
         s = Settings()
-        self.assertEqual(s.engine, "granite")
+        self.assertEqual(s.engine, "cohere")
         self.assertEqual(s.device, "cuda")
         self.assertEqual(s.sample_rate, 16000)
         self.assertTrue(s.auto_copy)
         self.assertTrue(s.auto_paste)
         self.assertTrue(s.hotkeys_enabled)
+        self.assertTrue(s.punctuation)
         # Professional Mode defaults
         self.assertFalse(s.professional_mode)
         self.assertEqual(s.pro_active_preset, "General Professional")
@@ -63,14 +66,14 @@ class SettingsConfigTests(unittest.TestCase):
 
     def test_load_missing_file_returns_defaults(self):
         loaded = Settings.load(Path("/nonexistent/path/settings.json"))
-        self.assertEqual(loaded.engine, "granite")
+        self.assertEqual(loaded.engine, "cohere")
 
     def test_load_corrupt_json_returns_defaults(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             config_path = Path(temp_dir) / "settings.json"
             config_path.write_text("not valid json {{{", encoding="utf-8")
             loaded = Settings.load(config_path)
-            self.assertEqual(loaded.engine, "granite")
+            self.assertEqual(loaded.engine, "cohere")
 
     def test_professional_mode_round_trip(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -117,13 +120,13 @@ if __name__ == "__main__":
 class SettingsValidationTests(unittest.TestCase):
     """Tests for Settings.validate() correcting invalid values."""
 
-    def test_invalid_engine_falls_back_to_granite(self):
+    def test_invalid_engine_falls_back_to_cohere(self):
         s = Settings(engine="nonexistent")
         s.validate()
-        self.assertEqual(s.engine, "granite")
+        self.assertEqual(s.engine, "cohere")
 
     def test_valid_engines_accepted(self):
-        for engine in ("granite", "cohere"):
+        for engine in ("cohere",):
             s = Settings(engine=engine)
             s.validate()
             self.assertEqual(s.engine, engine)
@@ -171,4 +174,4 @@ class SettingsValidationTests(unittest.TestCase):
             p = Path(td) / "settings.json"
             p.write_text(json.dumps({"engine": "invalid_eng"}), encoding="utf-8")
             s = Settings.load(p)
-            self.assertEqual(s.engine, "granite")
+            self.assertEqual(s.engine, "cohere")

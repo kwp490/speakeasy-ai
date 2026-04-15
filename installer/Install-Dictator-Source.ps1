@@ -4,8 +4,8 @@
 
 .DESCRIPTION
     Copies the local dictat0r.AI source tree to the install directory, installs
-    Python 3.11 and uv via winget, syncs all dependencies, downloads model
-    weights for both engines, and creates a desktop shortcut.
+    Python 3.11 and uv via winget, syncs all dependencies, downloads the Cohere
+    Transcribe model, and creates a desktop shortcut.
 
     Requires Administrator elevation. Installs everything to C:\Program Files\dictat0r.AI\
     (binaries, models, config, logs, temp).
@@ -180,9 +180,11 @@ Write-Host "  │  manager (https://github.com/astral-sh/uv) installed via      
 Write-Host "  │  winget and is required to resolve and sync dependencies.      │" -ForegroundColor Yellow
 Write-Host "  └─────────────────────────────────────────────────────────────────┘" -ForegroundColor Yellow
 Write-Host ""
-Write-Host "  Both engines (Granite and Cohere) will be installed."
+Write-Host "  The Cohere Transcribe model will be downloaded during installation."
+Write-Host "  A HuggingFace account with access to the gated model is required."
+Write-Host "  Get your token at: https://huggingface.co/settings/tokens"
 Write-Host ""
-Read-Host "  Press Enter to continue"
+$HfToken = Read-Host "  Enter your HuggingFace API token (or press Enter to skip model download)"
 
 # ── Install uv ───────────────────────────────────────────────────────────────
 Write-Step "Checking for uv package manager..."
@@ -342,7 +344,7 @@ $ErrorActionPreference = 'Continue'
 try { & $venvPython -c "import torch; print(f'torch {torch.__version__}')" 2>&1 | ForEach-Object { Write-Host "  $_" } }
 finally { $ErrorActionPreference = $prevPref }
 if ($LASTEXITCODE -ne 0) {
-    Write-Warn "torch import failed. Both engines require PyTorch."
+    Write-Warn "torch import failed. The Cohere engine requires PyTorch."
     Write-Host "  Try: cd '$InstallDir'; uv pip install --index-url https://download.pytorch.org/whl/cu128 torch" -ForegroundColor Yellow
 } else {
     Write-Ok "torch import OK"
@@ -486,28 +488,18 @@ foreach ($logFile in @("dictator.log", "dictator.log.1", "dictator.log.2")) {
     }
 }
 
-# ── Download Granite model ────────────────────────────────────────────────────
-Write-Step "Checking Granite model (IBM Granite 4.0 1B Speech)..."
-$graniteDir = Join-Path $ModelsDir "granite"
-if ((Test-Path (Join-Path $graniteDir "config.json"))) {
-    Write-Already "Granite model already present in $graniteDir"
-} else {
-    Write-Host "  Downloading Granite model (ibm-granite/granite-4.0-1b-speech)..."
-    Push-Location $InstallDir
-    Invoke-StreamingCommand 'Granite model download' { uv run dictator download-model --engine granite --target-dir $ModelsDir }
-    Pop-Location
-    Write-Ok "Granite model downloaded to $graniteDir"
-}
-
 # ── Download Cohere model ─────────────────────────────────────────────────────
 Write-Step "Checking Cohere model (Cohere Transcribe 03-2026)..."
 $cohereDir = Join-Path $ModelsDir "cohere"
 if ((Test-Path (Join-Path $cohereDir "config.json"))) {
     Write-Already "Cohere model already present in $cohereDir"
+} elseif ([string]::IsNullOrWhiteSpace($HfToken)) {
+    Write-Warn "No HuggingFace token provided — skipping Cohere model download"
+    Write-Host "  Run later: cd '$InstallDir'; uv run dictator download-model --token YOUR_TOKEN --target-dir $ModelsDir" -ForegroundColor Yellow
 } else {
     Write-Host "  Downloading Cohere model (CohereLabs/cohere-transcribe-03-2026)..."
     Push-Location $InstallDir
-    Invoke-StreamingCommand 'Cohere model download' { uv run dictator download-model --engine cohere --target-dir $ModelsDir }
+    Invoke-StreamingCommand 'Cohere model download' { uv run dictator download-model --token $HfToken --target-dir $ModelsDir }
     Pop-Location
     Write-Ok "Cohere model downloaded to $cohereDir"
 }
@@ -516,7 +508,7 @@ if ((Test-Path (Join-Path $cohereDir "config.json"))) {
 Write-Step "Configuring default engine..."
 $settingsFile = Join-Path $ConfigDir "settings.json"
 $cfg = $null
-$defaultEngine = 'granite'
+$defaultEngine = 'cohere'
 if (Test-Path $settingsFile) {
     $rawSettings = Get-Content $settingsFile -Raw
     if (-not [string]::IsNullOrWhiteSpace($rawSettings)) {
@@ -597,7 +589,7 @@ Write-Host "  Models:         $ModelsDir"
 Write-Host "  Config:         $ConfigDir"
 Write-Host "  Logs:           $LogsDir"
 Write-Host ""
-Write-Host "  Engines:        Granite (default), Cohere"
+Write-Host "  Engine:         Cohere Transcribe"
 Write-Host ""
 Write-Host "  To launch:      Double-click the desktop shortcut or run:"
 Write-Host "    cd '$InstallDir'; uv run dictator"

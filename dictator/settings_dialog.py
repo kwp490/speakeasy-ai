@@ -31,9 +31,26 @@ from PySide6.QtWidgets import (
 
 from .audio import AudioRecorder
 from .config import Settings
-from .engine import ENGINES, get_available_engines
 
 log = logging.getLogger(__name__)
+
+# Cohere Transcribe 03-2026 supported languages
+COHERE_LANGUAGES = [
+    ("en", "English"),
+    ("fr", "French"),
+    ("de", "German"),
+    ("it", "Italian"),
+    ("es", "Spanish"),
+    ("pt", "Portuguese"),
+    ("el", "Greek"),
+    ("nl", "Dutch"),
+    ("pl", "Polish"),
+    ("zh", "Chinese (Mandarin)"),
+    ("ja", "Japanese"),
+    ("ko", "Korean"),
+    ("vi", "Vietnamese"),
+    ("ar", "Arabic"),
+]
 
 
 class SettingsDialog(QDialog):
@@ -60,11 +77,6 @@ class SettingsDialog(QDialog):
         engine_group = QGroupBox("Model Engine")
         engine_form = QFormLayout()
 
-        self._engine_combo = QComboBox()
-        for name in ENGINES:
-            self._engine_combo.addItem(name)
-        engine_form.addRow("Engine:", self._engine_combo)
-
         model_row = QHBoxLayout()
         self._model_path = QLineEdit()
         btn_browse = QPushButton("Browse…")
@@ -77,23 +89,18 @@ class SettingsDialog(QDialog):
         self._device_combo.addItems(["cuda", "cpu"])
         engine_form.addRow("Device:", self._device_combo)
 
-        self._language = QLineEdit()
-        self._language.setMaximumWidth(100)
-        engine_form.addRow("Language:", self._language)
+        self._language_combo = QComboBox()
+        for code, label in COHERE_LANGUAGES:
+            self._language_combo.addItem(f"{label} ({code})", code)
+        engine_form.addRow("Language:", self._language_combo)
+
+        self._punctuation = QCheckBox("Enable automatic punctuation")
+        engine_form.addRow(self._punctuation)
 
         self._inference_timeout = QSpinBox()
         self._inference_timeout.setRange(5, 300)
         self._inference_timeout.setSuffix(" s")
         engine_form.addRow("Inference timeout:", self._inference_timeout)
-
-        self._keywords = QLineEdit()
-        self._keywords.setPlaceholderText("e.g. PyTorch, CUDA, dictat0r.AI")
-        self._keywords.setToolTip(
-            "Comma-separated keywords to bias transcription towards "
-            "(domain-specific terms, proper nouns, etc.). "
-            "Currently used by the Granite engine only."
-        )
-        engine_form.addRow("Keywords:", self._keywords)
 
         engine_group.setLayout(engine_form)
         layout.addWidget(engine_group)
@@ -171,16 +178,15 @@ class SettingsDialog(QDialog):
 
     def _populate(self) -> None:
         s = self.settings
-        idx = self._engine_combo.findText(s.engine)
-        if idx >= 0:
-            self._engine_combo.setCurrentIndex(idx)
         self._model_path.setText(s.model_path)
         idx = self._device_combo.findText(s.device)
         if idx >= 0:
             self._device_combo.setCurrentIndex(idx)
-        self._language.setText(s.language)
+        idx = self._language_combo.findData(s.language)
+        if idx >= 0:
+            self._language_combo.setCurrentIndex(idx)
+        self._punctuation.setChecked(s.punctuation)
         self._inference_timeout.setValue(s.inference_timeout)
-        self._keywords.setText(s.keywords)
         self._silence_threshold.setValue(s.silence_threshold)
         self._silence_margin.setValue(s.silence_margin_ms)
         self._sample_rate.setValue(s.sample_rate)
@@ -199,12 +205,11 @@ class SettingsDialog(QDialog):
 
     def _save_and_accept(self) -> None:
         s = self.settings
-        s.engine = self._engine_combo.currentText()
         s.model_path = self._model_path.text().strip()
         s.device = self._device_combo.currentText()
-        s.language = self._language.text().strip() or "en"
+        s.language = self._language_combo.currentData() or "en"
+        s.punctuation = self._punctuation.isChecked()
         s.inference_timeout = self._inference_timeout.value()
-        s.keywords = self._keywords.text().strip()
         s.silence_threshold = self._silence_threshold.value()
         s.silence_margin_ms = self._silence_margin.value()
         s.sample_rate = self._sample_rate.value()

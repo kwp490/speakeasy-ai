@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "dictator"
-version = "0.1.0"
-description = "dictat0r.AI — Native Windows voice-to-text with GPU acceleration — Granite or Cohere engine"
+version = "0.3.0"
+description = "dictat0r.AI — Native Windows voice-to-text with GPU acceleration — Cohere Transcribe engine"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"

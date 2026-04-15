@@ -20,7 +20,7 @@ What you expected to happen.
 **Environment**
 - dictat0r.AI version: (e.g., 3.0.0)
 - Install method: (GUI installer / source / other)
-- Engine: (Granite / Cohere)
+- Engine: Cohere Transcribe
 - Windows version: (e.g., Windows 11 24H2)
 - GPU: (e.g., RTX 4070 Ti, 12 GB)
 - NVIDIA driver version: (e.g., 560.81)

@@ -5,6 +5,22 @@ All notable changes to dictat0r.AI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - Cohere-Only Release
+
+### Changed
+- **Single engine**: Replaced dual-engine architecture with Cohere Transcribe 03-2026 as the sole speech engine
+- **HuggingFace token**: Installation now prompts for a HuggingFace API token (required for gated model access)
+- **Punctuation control**: New setting replaces the old keywords field — toggle automatic punctuation on/off
+- **Simplified settings**: Removed engine selection dropdown, streamlined UI
+- **Language dropdown**: Settings now shows all 14 Cohere-supported languages in a dropdown
+
+### Removed
+- **IBM Granite 4.0 1B Speech** engine and all related code
+- **Keywords** setting (replaced by punctuation toggle)
+- **Engine selection** UI (single engine, no choice needed)
+
+---
+
 ## [0.1.0] - Initial Release
 
 ### Added
