@@ -64,6 +64,7 @@ a = Analysis(
         'matplotlib',
         'pandas',
         'PIL',
+        'sklearn',
         # Qt submodules not used (only QtWidgets/QtCore/QtGui needed)
         'PySide6.QtQuick',
         'PySide6.QtQml',
@@ -107,6 +108,9 @@ _STRIP_PATTERNS = [
     _re.compile(r'PySide6[\\/]plugins[\\/]platforminputcontexts[\\/]qtvirtualkeyboardplugin', _re.I),
     _re.compile(r'PySide6[\\/]plugins[\\/]networkinformation[\\/]qnetworklistmanager', _re.I),
     _re.compile(r'PySide6[\\/]plugins[\\/]imageformats[\\/](?:qpdf|qicns|qtga|qtiff|qwbmp|qwebp)\.dll', _re.I),
+    # sklearn is not used by the active Cohere path; drop any leftover package/data payload
+    _re.compile(r'(?:^|[\\/])sklearn[\\/]', _re.I),
+    _re.compile(r'(?:^|[\\/])scikit_learn-[^\\/]+\.dist-info[\\/]', _re.I),
     # Duplicate / dev binaries in torch/bin
     _re.compile(r'torch[\\/]bin[\\/]asmjit', _re.I),
     _re.compile(r'torch[\\/]bin[\\/]fbgemm', _re.I),

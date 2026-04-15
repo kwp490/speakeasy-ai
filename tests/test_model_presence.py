@@ -5,11 +5,16 @@ model path resolution respects DICTATOR_HOME, and that the engine
 registry correctly reports availability based on on-disk model files.
 """
 
+import builtins
+import importlib
 import os
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
+
+import numpy as np
 
 from dictator.engine import ENGINES, _model_files_exist, get_available_engines
 from dictator.model_downloader import _ENGINE_REPO_MAP, model_ready
@@ -138,6 +143,51 @@ class TestEngineRuntimeDependencies(unittest.TestCase):
             # spawn must work
             ctx = mp.get_context("spawn")
             self.assertIsNotNone(ctx)
+
+    def test_cohere_feature_extractor_runs_without_sklearn(self):
+        """The active Cohere feature-extractor path must not require sklearn."""
+        blocked_names: list[str] = []
+        real_import = builtins.__import__
+        saved_modules = {
+            name: module
+            for name, module in list(sys.modules.items())
+            if name == "librosa"
+            or name.startswith("librosa.")
+            or name == "sklearn"
+            or name.startswith("sklearn.")
+            or name == "transformers.models.cohere_asr.feature_extraction_cohere_asr"
+        }
+
+        for name in saved_modules:
+            sys.modules.pop(name, None)
+
+        def guarded_import(name, *args, **kwargs):
+            if name == "sklearn" or name.startswith("sklearn."):
+                blocked_names.append(name)
+                raise ImportError("blocked sklearn for test")
+            return real_import(name, *args, **kwargs)
+
+        try:
+            builtins.__import__ = guarded_import
+            module = importlib.import_module(
+                "transformers.models.cohere_asr.feature_extraction_cohere_asr"
+            )
+            extractor = module.CohereAsrFeatureExtractor()
+            output = extractor(
+                np.zeros(16000, dtype=np.float32),
+                sampling_rate=16000,
+                return_tensors="pt",
+            )
+            self.assertIn("input_features", output)
+        finally:
+            builtins.__import__ = real_import
+            sys.modules.update(saved_modules)
+
+        self.assertEqual(
+            blocked_names,
+            [],
+            "Cohere feature extraction should not attempt to import sklearn.",
+        )
 
 
 class TestAllRegisteredEnginesHaveRepoMapping(unittest.TestCase):

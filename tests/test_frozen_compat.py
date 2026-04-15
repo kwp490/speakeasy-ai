@@ -279,6 +279,11 @@ class TestTransitiveDependenciesInSpec(unittest.TestCase):
             "dictator.spec must reference transformers in data file collection",
         )
 
+    def test_sklearn_excluded(self):
+        """sklearn should be excluded from the frozen bundle."""
+        excludes = self._parse_excludes()
+        self.assertIn("sklearn", excludes)
+
 
 class TestSpecStripPatterns(unittest.TestCase):
     """Verify stripped binaries are not needed and required ones are kept."""
@@ -357,6 +362,19 @@ class TestSpecStripPatterns(unittest.TestCase):
             spec_text,
             "dictator.spec must filter data entries with the strip patterns.",
         )
+
+    def test_sklearn_payload_is_stripped(self):
+        """Leftover sklearn package/data entries should be stripped from the bundle."""
+        patterns = [re.compile(p, re.I) for p in self._parse_strip_patterns()]
+        sample_entries = [
+            r"sklearn\datasets\images\china.jpg",
+            r"scikit_learn-1.8.0.dist-info\METADATA",
+        ]
+        for entry in sample_entries:
+            self.assertTrue(
+                any(p.search(entry) for p in patterns),
+                f"dictator.spec should strip '{entry}'.",
+            )
 
     # ── Excluded modules must not break engine imports ───────────────────
 
