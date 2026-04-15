@@ -1,0 +1,657 @@
+; ─────────────────────────────────────────────────────────────────────────────
+; dictat0r.AI Inno Setup Installer Script
+;
+; Produces a single dictator-AI-Setup-0.1.0.exe that handles:
+;   - File extraction (from PyInstaller dist/dictator/ output)
+;   - Model downloads for Granite and Cohere engines
+;   - Desktop + Start Menu shortcuts
+;   - Data migration from previous installs
+;   - Windows Defender exclusions
+;   - Silent / unattended mode
+;
+; Build:
+;   pyinstaller dictator.spec
+;   iscc installer\dictator-setup.iss
+;
+; Requires Inno Setup 6.x — https://jrsoftware.org/isdl.php
+; ─────────────────────────────────────────────────────────────────────────────
+
+#define MyAppName "dictat0r.AI"
+#define MyAppVersion "0.1.0"
+#define MyAppPublisher "kwp490"
+#define MyAppURL "https://github.com/kwp490/dictat0r.AI"
+#define MyAppExeName "dictator.exe"
+
+[Setup]
+AppId={{A1B2C3D4-5E6F-7A8B-9C0D-E1F2A3B4C5D6}
+AppName={#MyAppName}
+AppVersion={#MyAppVersion}
+AppVerName={#MyAppName} {#MyAppVersion}
+AppPublisher={#MyAppPublisher}
+AppPublisherURL={#MyAppURL}
+AppSupportURL={#MyAppURL}/issues
+DefaultDirName={autopf}\dictat0r.AI
+DefaultGroupName={#MyAppName}
+DisableProgramGroupPage=yes
+LicenseFile=..\LICENSE
+OutputDir=Output
+OutputBaseFilename=dictator-AI-Setup-{#MyAppVersion}
+; Use /DFastCompress with iscc for fast dev builds (larger output, much faster)
+#ifdef FastCompress
+Compression=lzma2/fast
+SolidCompression=no
+#else
+Compression=lzma2/ultra64
+SolidCompression=yes
+#endif
+WizardStyle=modern
+PrivilegesRequired=admin
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
+UninstallDisplayName={#MyAppName}
+MinVersion=10.0
+SetupLogging=yes
+
+[Languages]
+Name: "english"; MessagesFile: "compiler:Default.isl"
+
+[Files]
+; Bundle entire PyInstaller output directory
+Source: "..\dist\dictator\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Cohere model installer script (launched separately if user opts in)
+Source: "cohere-model-setup.ps1"; DestDir: "{app}"; Flags: ignoreversion
+
+[Dirs]
+; Create writable data subdirectories
+Name: "{app}\models";  Permissions: users-modify
+Name: "{app}\config";  Permissions: users-modify
+Name: "{app}\logs";    Permissions: users-modify
+Name: "{app}\temp";    Permissions: users-modify
+
+[Icons]
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; \
+    WorkingDir: "{app}"; Comment: "dictat0r.AI — Voice to Text"
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; \
+    WorkingDir: "{app}"; Comment: "dictat0r.AI — Voice to Text"
+Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
+
+[Run]
+; Windows Defender exclusion (best-effort, silent)
+Filename: "powershell.exe"; \
+    Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Add-MpPreference -ExclusionPath '{app}' -ErrorAction SilentlyContinue; Add-MpPreference -ExclusionProcess '{app}\{#MyAppExeName}' -ErrorAction SilentlyContinue"""; \
+    Flags: runhidden waituntilterminated; StatusMsg: "Configuring Windows Defender exclusions..."
+
+; Offer to launch after install
+Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; \
+    Flags: nowait postinstall skipifsilent; WorkingDir: "{app}"
+
+[UninstallDelete]
+; Always clean up logs, temp, and config on uninstall.
+; Models are handled by CurUninstallStepChanged (user is prompted).
+Type: filesandordirs; Name: "{app}\logs"
+Type: filesandordirs; Name: "{app}\temp"
+Type: filesandordirs; Name: "{app}\config"
+
+[UninstallRun]
+; Remove Defender exclusions on uninstall
+Filename: "powershell.exe"; \
+    Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Remove-MpPreference -ExclusionPath '{app}' -ErrorAction SilentlyContinue; Remove-MpPreference -ExclusionProcess '{app}\{#MyAppExeName}' -ErrorAction SilentlyContinue"""; \
+    Flags: runhidden waituntilterminated; RunOnceId: "DefenderExclusions"
+
+[Code]
+// ── State variables ────────────────────────────────────────────────────────
+var
+  EnginePage: TWizardPage;
+  GpuInfoLabel: TNewStaticText;
+  GraniteOnlyRadio: TNewRadioButton;
+  GraniteCohereRadio: TNewRadioButton;
+  InstallCohere: Boolean;
+  DownloadPage: TOutputProgressWizardPage;
+  SummaryPage: TWizardPage;
+  SummaryMemo: TNewMemo;
+  DetectedGPU: String;
+  DetectedGPU_Name: String;
+  DetectedVRAM_MB: Integer;
+
+// ── GPU detection ───────────────────────────────────────────────────────────
+function DetectGPU: String;
+var
+  ResultCode: Integer;
+  TempFile: String;
+  Lines: TArrayOfString;
+  Raw, Token: String;
+  CommaPos: Integer;
+begin
+  Result := '';
+  DetectedGPU_Name := '';
+  DetectedVRAM_MB := 0;
+  TempFile := ExpandConstant('{tmp}\gpu_detect.txt');
+  if Exec('cmd.exe',
+      '/C nvidia-smi --query-gpu=name,memory.total --format=csv,noheader,nounits > "' + TempFile + '" 2>&1',
+      '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+  begin
+    if (ResultCode = 0) and LoadStringsFromFile(TempFile, Lines) then
+    begin
+      if GetArrayLength(Lines) > 0 then
+      begin
+        Raw := Trim(Lines[0]);
+        Result := Raw;
+        CommaPos := Pos(',', Raw);
+        if CommaPos > 0 then
+        begin
+          DetectedGPU_Name := Trim(Copy(Raw, 1, CommaPos - 1));
+          Token := Trim(Copy(Raw, CommaPos + 1, Length(Raw)));
+          DetectedVRAM_MB := StrToIntDef(Token, 0);
+        end else
+          DetectedGPU_Name := Raw;
+      end;
+    end;
+  end;
+  DeleteFile(TempFile);
+end;
+
+// ── Format VRAM as human-readable GB string ─────────────────────────────────
+function FormatVRAM_GB(MB: Integer): String;
+var
+  GB_Whole, GB_Frac: Integer;
+begin
+  GB_Whole := MB div 1024;
+  GB_Frac  := ((MB mod 1024) * 10) div 1024;
+  Result := IntToStr(GB_Whole) + '.' + IntToStr(GB_Frac) + ' GB';
+end;
+
+// ── Default engine name ─────────────────────────────────────────────────────
+function DefaultEngineName: String;
+begin
+  Result := 'granite';
+end;
+
+// ── Create Engine Selection wizard page ──────────────────────────────────────
+procedure CreateEngineInfoPage;
+var
+  Lbl: TNewStaticText;
+  TopPos: Integer;
+begin
+  EnginePage := CreateCustomPage(wpSelectDir,
+    'Speech Engine Selection',
+    'Choose which speech engines to install. You can add Cohere later if needed.');
+
+  DetectedGPU := DetectGPU;
+  TopPos := 0;
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Section 1 — Your GPU
+  // ═══════════════════════════════════════════════════════════════════════════
+  Lbl := TNewStaticText.Create(EnginePage);
+  Lbl.Parent := EnginePage.Surface;
+  Lbl.Left := 0;
+  Lbl.Top := TopPos;
+  Lbl.Width := EnginePage.SurfaceWidth;
+  Lbl.Caption := 'Your GPU';
+  Lbl.Font.Style := [fsBold];
+  Lbl.Font.Size := 9;
+  TopPos := TopPos + ScaleY(18);
+
+  GpuInfoLabel := TNewStaticText.Create(EnginePage);
+  GpuInfoLabel.Parent := EnginePage.Surface;
+  GpuInfoLabel.Left := ScaleX(8);
+  GpuInfoLabel.Top := TopPos;
+  GpuInfoLabel.Width := EnginePage.SurfaceWidth - ScaleX(8);
+  GpuInfoLabel.AutoSize := False;
+  GpuInfoLabel.WordWrap := True;
+
+  if DetectedGPU <> '' then
+  begin
+    if DetectedVRAM_MB > 0 then
+      GpuInfoLabel.Caption := DetectedGPU_Name + '  —  ' + FormatVRAM_GB(DetectedVRAM_MB) + ' video memory (VRAM)'
+    else
+      GpuInfoLabel.Caption := DetectedGPU_Name;
+    GpuInfoLabel.Height := ScaleY(18);
+  end else
+  begin
+    GpuInfoLabel.Caption := 'No NVIDIA GPU detected. Transcription will still work, but will be' + #13#10 +
+                            'slower using your CPU.';
+    GpuInfoLabel.Height := ScaleY(32);
+  end;
+  TopPos := TopPos + GpuInfoLabel.Height + ScaleY(4);
+
+  if DetectedGPU <> '' then
+  begin
+    // Granite VRAM check
+    Lbl := TNewStaticText.Create(EnginePage);
+    Lbl.Parent := EnginePage.Surface;
+    Lbl.Left := ScaleX(16);
+    Lbl.Top := TopPos;
+    Lbl.Width := EnginePage.SurfaceWidth - ScaleX(16);
+    if DetectedVRAM_MB >= 3072 then
+    begin
+      Lbl.Caption := #$2713 + '  Granite needs ~3 GB  —  your GPU has enough';
+      Lbl.Font.Color := clGreen;
+    end else
+    begin
+      Lbl.Caption := #$2717 + '  Granite needs ~3 GB  —  your GPU may not have enough (CPU fallback available)';
+      Lbl.Font.Color := $0000C0;
+    end;
+    TopPos := TopPos + ScaleY(18);
+
+    // Cohere VRAM check
+    Lbl := TNewStaticText.Create(EnginePage);
+    Lbl.Parent := EnginePage.Surface;
+    Lbl.Left := ScaleX(16);
+    Lbl.Top := TopPos;
+    Lbl.Width := EnginePage.SurfaceWidth - ScaleX(16);
+    if DetectedVRAM_MB >= 5120 then
+    begin
+      Lbl.Caption := #$2713 + '  Cohere needs ~5 GB  —  your GPU has enough';
+      Lbl.Font.Color := clGreen;
+    end else
+    begin
+      Lbl.Caption := #$2717 + '  Cohere needs ~5 GB  —  your GPU may not have enough (CPU fallback available)';
+      Lbl.Font.Color := $0000C0;
+    end;
+    TopPos := TopPos + ScaleY(18);
+  end;
+
+  TopPos := TopPos + ScaleY(12);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Section 2 — Engine choice radio buttons
+  // ═══════════════════════════════════════════════════════════════════════════
+  Lbl := TNewStaticText.Create(EnginePage);
+  Lbl.Parent := EnginePage.Surface;
+  Lbl.Left := 0;
+  Lbl.Top := TopPos;
+  Lbl.Width := EnginePage.SurfaceWidth;
+  Lbl.Caption := 'Select engines to install';
+  Lbl.Font.Style := [fsBold];
+  Lbl.Font.Size := 9;
+  TopPos := TopPos + ScaleY(22);
+
+  GraniteOnlyRadio := TNewRadioButton.Create(EnginePage);
+  GraniteOnlyRadio.Parent := EnginePage.Surface;
+  GraniteOnlyRadio.Left := ScaleX(8);
+  GraniteOnlyRadio.Top := TopPos;
+  GraniteOnlyRadio.Width := EnginePage.SurfaceWidth - ScaleX(8);
+  GraniteOnlyRadio.Caption := 'Granite only (recommended)';
+  GraniteOnlyRadio.Font.Style := [fsBold];
+  GraniteOnlyRadio.Checked := True;
+  TopPos := TopPos + ScaleY(16);
+
+  Lbl := TNewStaticText.Create(EnginePage);
+  Lbl.Parent := EnginePage.Surface;
+  Lbl.Left := ScaleX(28);
+  Lbl.Top := TopPos;
+  Lbl.Width := EnginePage.SurfaceWidth - ScaleX(28);
+  Lbl.AutoSize := False;
+  Lbl.WordWrap := True;
+  Lbl.Height := ScaleY(28);
+  Lbl.Caption := 'IBM Granite 4.0 1B Speech — compact, fast, ideal for real-time dictation. ~3 GB VRAM.';
+  Lbl.Font.Color := $808080;
+  TopPos := TopPos + ScaleY(32);
+
+  GraniteCohereRadio := TNewRadioButton.Create(EnginePage);
+  GraniteCohereRadio.Parent := EnginePage.Surface;
+  GraniteCohereRadio.Left := ScaleX(8);
+  GraniteCohereRadio.Top := TopPos;
+  GraniteCohereRadio.Width := EnginePage.SurfaceWidth - ScaleX(8);
+  GraniteCohereRadio.Caption := 'Granite + Cohere (requires free HuggingFace account)';
+  GraniteCohereRadio.Font.Style := [fsBold];
+  TopPos := TopPos + ScaleY(16);
+
+  Lbl := TNewStaticText.Create(EnginePage);
+  Lbl.Parent := EnginePage.Surface;
+  Lbl.Left := ScaleX(28);
+  Lbl.Top := TopPos;
+  Lbl.Width := EnginePage.SurfaceWidth - ScaleX(28);
+  Lbl.AutoSize := False;
+  Lbl.WordWrap := True;
+  Lbl.Height := ScaleY(42);
+  Lbl.Caption := 'Cohere Transcribe 03-2026 — high-accuracy 2B-parameter model, 14 languages. ~5 GB VRAM.' + #13#10 +
+                 'Requires a free HuggingFace account. A separate setup wizard will guide you after install.';
+  Lbl.Font.Color := $808080;
+end;
+
+// ── "Ready to Install" page customization ───────────────────────────────────
+function UpdateReadyMemo(Space, NewLine, MemoUserInfoInfo, MemoDirInfo,
+  MemoTypeInfo, MemoComponentsInfo, MemoGroupInfo, MemoTasksInfo: String): String;
+var
+  Info: String;
+begin
+  // Read engine choice from radio buttons
+  InstallCohere := GraniteCohereRadio.Checked;
+
+  Info := '';
+
+  Info := Info + 'Application:' + NewLine;
+  Info := Info + Space + 'dictat0r.AI {#MyAppVersion} — Native Windows Voice-to-Text' + NewLine;
+  Info := Info + NewLine;
+
+  if MemoDirInfo <> '' then
+  begin
+    Info := Info + MemoDirInfo + NewLine;
+    Info := Info + NewLine;
+  end;
+
+  if InstallCohere then
+  begin
+    Info := Info + 'Speech engines:' + NewLine;
+    Info := Info + Space + 'IBM Granite 4.0 1B Speech  (~3 GB VRAM, default)' + NewLine;
+    Info := Info + Space + 'Cohere Transcribe 03-2026  (~5 GB VRAM, separate setup will follow)' + NewLine;
+    Info := Info + NewLine;
+  end else
+  begin
+    Info := Info + 'Speech engine:' + NewLine;
+    Info := Info + Space + 'IBM Granite 4.0 1B Speech  (~3 GB VRAM, default)' + NewLine;
+    Info := Info + NewLine;
+  end;
+
+  Info := Info + 'The installer will:' + NewLine;
+  Info := Info + Space + '1. Extract dictat0r.AI application files' + NewLine;
+  Info := Info + Space + '   Includes: dictator.exe, PySide6 (Qt GUI), transformers,' + NewLine;
+  Info := Info + Space + '   PyTorch, sounddevice, numpy, and CUDA runtime libraries' + NewLine;
+  Info := Info + Space + '2. Download Granite model from HuggingFace' + NewLine;
+  if InstallCohere then
+    Info := Info + Space + '3. Launch separate Cohere model setup wizard' + NewLine;
+  Info := Info + Space + '3. Create desktop and Start Menu shortcuts' + NewLine;
+  Info := Info + Space + '4. Configure Windows Defender exclusions' + NewLine;
+  Info := Info + NewLine;
+
+  if DetectedGPU <> '' then
+    Info := Info + 'GPU: ' + DetectedGPU + NewLine
+  else
+    Info := Info + 'GPU: No NVIDIA GPU detected (will use CPU — slower)' + NewLine;
+
+  Result := Info;
+end;
+
+// ── Recursive directory copy helper ─────────────────────────────────────────
+procedure DirectoryCopy(SourceDir, DestDir: String);
+var
+  FindRec: TFindRec;
+  SourcePath, DestPath: String;
+begin
+  if not ForceDirectories(DestDir) then
+    Exit;
+  if FindFirst(SourceDir + '\*', FindRec) then
+  begin
+    try
+      repeat
+        if (FindRec.Name = '.') or (FindRec.Name = '..') then
+          Continue;
+        SourcePath := SourceDir + '\' + FindRec.Name;
+        DestPath := DestDir + '\' + FindRec.Name;
+        if (FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0 then
+          DirectoryCopy(SourcePath, DestPath)
+        else
+          CopyFile(SourcePath, DestPath, False);
+      until not FindNext(FindRec);
+    finally
+      FindClose(FindRec);
+    end;
+  end;
+end;
+
+// ── Migrate data from previous install locations ────────────────────────────
+procedure MigrateOldData;
+var
+  OldSettings, NewSettings: String;
+  OldModelsDir, NewEngineDir: String;
+  FindRec: TFindRec;
+  OldLogDir, OldLog, NewLog: String;
+  LogFiles: array[0..2] of String;
+  I: Integer;
+begin
+  OldSettings := ExpandConstant('{userappdata}\dictat0r.AI\settings.json');
+  NewSettings := ExpandConstant('{app}\config\settings.json');
+  if FileExists(OldSettings) and (not FileExists(NewSettings)) then
+    CopyFile(OldSettings, NewSettings, False);
+
+  OldModelsDir := ExpandConstant('{localappdata}\dictat0r.AI\models');
+  if DirExists(OldModelsDir) then
+  begin
+    if FindFirst(OldModelsDir + '\*', FindRec) then
+    begin
+      try
+        repeat
+          if (FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0 then
+          begin
+            if (FindRec.Name <> '.') and (FindRec.Name <> '..') then
+            begin
+              NewEngineDir := ExpandConstant('{app}\models\') + FindRec.Name;
+              if not DirExists(NewEngineDir) then
+                DirectoryCopy(OldModelsDir + '\' + FindRec.Name, NewEngineDir);
+            end;
+          end;
+        until not FindNext(FindRec);
+      finally
+        FindClose(FindRec);
+      end;
+    end;
+  end;
+
+  OldLogDir := ExpandConstant('{userappdata}\dictat0r.AI');
+  LogFiles[0] := 'dictator.log';
+  LogFiles[1] := 'dictator.log.1';
+  LogFiles[2] := 'dictator.log.2';
+  for I := 0 to 2 do
+  begin
+    OldLog := OldLogDir + '\' + LogFiles[I];
+    NewLog := ExpandConstant('{app}\logs\') + LogFiles[I];
+    if FileExists(OldLog) and (not FileExists(NewLog)) then
+      CopyFile(OldLog, NewLog, False);
+  end;
+end;
+
+// ── Write settings.json with default engine ─────────────────────────────────
+procedure WriteDefaultSettings;
+var
+  SettingsFile: String;
+  Json: String;
+begin
+  SettingsFile := ExpandConstant('{app}\config\settings.json');
+  if not FileExists(SettingsFile) then
+  begin
+    Json := '{' + #13#10 +
+            '  "engine": "' + DefaultEngineName + '"' + #13#10 +
+            '}';
+    SaveStringToFile(SettingsFile, Json, False);
+  end;
+end;
+
+// ── Download models via dictator.exe ────────────────────────────────────────
+procedure DownloadModels;
+var
+  ExePath, ModelsDir: String;
+  ResultCode: Integer;
+begin
+  ExePath := ExpandConstant('{app}\{#MyAppExeName}');
+  ModelsDir := ExpandConstant('{app}\models');
+
+  // Exit codes from dictator.model_downloader:
+  //   0 = success, 1 = failure, 2 = auth required (gated repo)
+
+  // Download Granite model (anonymous — public repo)
+  DownloadPage := CreateOutputProgressPage('Downloading Models',
+    'Downloading the Granite speech recognition model. This may take several minutes.');
+  DownloadPage.Show;
+
+  DownloadPage.SetText('Downloading Granite model (ibm-granite/granite-4.0-1b-speech)...',
+    'Source: huggingface.co/ibm-granite/granite-4.0-1b-speech');
+  DownloadPage.SetProgress(0, 1);
+  try
+    Exec(ExePath, 'download-model --engine granite --target-dir "' + ModelsDir + '"',
+         '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    if ResultCode <> 0 then
+      MsgBox('Granite model download failed (exit code ' + IntToStr(ResultCode) + ').' + #13#10 + #13#10 +
+             'You can download it later by running:' + #13#10 +
+             '"' + ExePath + '" download-model --engine granite' + #13#10 + #13#10 +
+             'Or from the application: the model will be downloaded on first launch.',
+             mbError, MB_OK);
+  except
+    MsgBox('Could not start Granite model download.' + #13#10 +
+           'You can download models later from the application.',
+           mbError, MB_OK);
+  end;
+  DownloadPage.SetProgress(1, 1);
+
+  DownloadPage.Hide;
+end;
+
+// ── Post-install orchestration ──────────────────────────────────────────────
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  Summary: String;
+  InstDir, ModelsDir: String;
+  GraniteReady: Boolean;
+  ResultCode: Integer;
+begin
+  if CurStep = ssPostInstall then
+  begin
+    MigrateOldData;
+    WriteDefaultSettings;
+    DownloadModels;
+
+    // Launch Cohere model installer if the user opted in
+    if InstallCohere then
+    begin
+      Exec('powershell.exe',
+           '-NoProfile -ExecutionPolicy Bypass -File "' + ExpandConstant('{app}') + '\cohere-model-setup.ps1"',
+           '', SW_SHOW, ewWaitUntilTerminated, ResultCode);
+    end;
+
+    InstDir := ExpandConstant('{app}');
+    ModelsDir := InstDir + '\models';
+
+    Summary := 'dictat0r.AI {#MyAppVersion} has been installed successfully.' + #13#10;
+    Summary := Summary + '════════════════════════════════════════════' + #13#10 + #13#10;
+
+    Summary := Summary + 'INSTALL LOCATION' + #13#10;
+    Summary := Summary + '  ' + InstDir + #13#10 + #13#10;
+
+    Summary := Summary + 'MODEL STATUS' + #13#10;
+    GraniteReady := DirExists(ModelsDir + '\granite');
+    if GraniteReady then
+      Summary := Summary + '  [OK] Granite — downloaded to ' + ModelsDir + '\granite' + #13#10
+    else
+      Summary := Summary + '  [!!] Granite — download failed (run dictator.exe download-model --engine granite)' + #13#10;
+
+    if InstallCohere then
+    begin
+      if DirExists(ModelsDir + '\cohere') then
+        Summary := Summary + '  [OK] Cohere — downloaded to ' + ModelsDir + '\cohere' + #13#10
+      else
+        Summary := Summary + '  [!!] Cohere — setup did not complete (run cohere-model-setup.ps1 to retry)' + #13#10;
+    end else
+      Summary := Summary + '  [--] Cohere — not selected (install later via cohere-model-setup.ps1)' + #13#10;
+    Summary := Summary + #13#10;
+
+    Summary := Summary + 'DEFAULT ENGINE' + #13#10;
+    Summary := Summary + '  Granite (switch in Settings at any time)' + #13#10 + #13#10;
+
+    Summary := Summary + 'SHORTCUTS' + #13#10;
+    Summary := Summary + '  Desktop shortcut created' + #13#10;
+    Summary := Summary + '  Start Menu group created' + #13#10 + #13#10;
+
+    Summary := Summary + 'DIRECTORIES' + #13#10;
+    Summary := Summary + '  Application:  ' + InstDir + #13#10;
+    Summary := Summary + '  Models:       ' + ModelsDir + #13#10;
+    Summary := Summary + '  Config:       ' + InstDir + '\config' + #13#10;
+    Summary := Summary + '  Logs:         ' + InstDir + '\logs' + #13#10 + #13#10;
+
+    if DetectedGPU <> '' then
+      Summary := Summary + 'GPU: ' + DetectedGPU + #13#10
+    else
+      Summary := Summary + 'GPU: No NVIDIA GPU detected (will use CPU)' + #13#10;
+    Summary := Summary + #13#10;
+
+    Summary := Summary + 'SECURITY' + #13#10;
+    Summary := Summary + '  Windows Defender exclusions configured for ' + InstDir + #13#10 + #13#10;
+
+    Summary := Summary + 'DEFAULT HOTKEYS' + #13#10;
+    Summary := Summary + '  Ctrl+Alt+P   Start recording' + #13#10;
+    Summary := Summary + '  Ctrl+Alt+L   Stop recording & transcribe' + #13#10;
+    Summary := Summary + '  Ctrl+Alt+Q   Quit application' + #13#10 + #13#10;
+
+    Summary := Summary + 'Hotkeys can be changed in Settings after launching dictat0r.AI.';
+
+    SummaryMemo.Text := Summary;
+  end;
+end;
+
+// ── InitializeWizard: create custom pages ───────────────────────────────────
+procedure InitializeWizard;
+begin
+  CreateEngineInfoPage;
+
+  SummaryPage := CreateCustomPage(wpInfoAfter,
+    'Installation Summary',
+    'Review what was installed and configured.');
+
+  SummaryMemo := TNewMemo.Create(SummaryPage);
+  SummaryMemo.Parent := SummaryPage.Surface;
+  SummaryMemo.Left := 0;
+  SummaryMemo.Top := 0;
+  SummaryMemo.Width := SummaryPage.SurfaceWidth;
+  SummaryMemo.Height := SummaryPage.SurfaceHeight;
+  SummaryMemo.ScrollBars := ssVertical;
+  SummaryMemo.ReadOnly := True;
+  SummaryMemo.Font.Name := 'Consolas';
+  SummaryMemo.Font.Size := 9;
+  SummaryMemo.Text := 'Installing...';
+end;
+
+// ── Uninstall: prompt for model deletion and clean up remnants ──────────────
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  AppDir, ModelsDir, GraniteDir, CohereDir: String;
+  HasGranite, HasCohere, DeleteModels: Boolean;
+  Msg: String;
+begin
+  if CurUninstallStep = usUninstall then
+  begin
+    AppDir := ExpandConstant('{app}');
+    ModelsDir := AppDir + '\models';
+    GraniteDir := ModelsDir + '\granite';
+    CohereDir  := ModelsDir + '\cohere';
+    HasGranite := DirExists(GraniteDir);
+    HasCohere  := DirExists(CohereDir);
+    DeleteModels := False;
+
+    if HasGranite or HasCohere then
+    begin
+      if not UninstallSilent then
+      begin
+        Msg := 'Do you also want to delete the downloaded speech models?' + #13#10 + #13#10;
+        if HasGranite and HasCohere then
+          Msg := Msg + '  ' + Chr(8226) + ' Granite model (IBM Granite 4.0 1B Speech)' + #13#10 +
+                       '  ' + Chr(8226) + ' Cohere model (Cohere Transcribe 03-2026)' + #13#10
+        else if HasGranite then
+          Msg := Msg + '  ' + Chr(8226) + ' Granite model (IBM Granite 4.0 1B Speech)' + #13#10
+        else
+          Msg := Msg + '  ' + Chr(8226) + ' Cohere model (Cohere Transcribe 03-2026)' + #13#10;
+        Msg := Msg + #13#10 +
+               'Click Yes to remove everything, or No to keep models for a future reinstall.';
+
+        DeleteModels := (MsgBox(Msg, mbConfirmation, MB_YESNO) = IDYES);
+      end;
+    end;
+
+    if DeleteModels then
+    begin
+      if HasGranite then
+        DelTree(GraniteDir, True, True, True);
+      if HasCohere then
+        DelTree(CohereDir, True, True, True);
+    end;
+
+    if DirExists(ModelsDir) then
+      RemoveDir(ModelsDir);
+  end;
+
+  if CurUninstallStep = usPostUninstall then
+  begin
+    AppDir := ExpandConstant('{app}');
+    if DirExists(AppDir) then
+      RemoveDir(AppDir);
+  end;
+end;
