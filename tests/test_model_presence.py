@@ -10,6 +10,7 @@ import importlib
 import os
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -201,6 +202,73 @@ class TestAllRegisteredEnginesHaveRepoMapping(unittest.TestCase):
                 _ENGINE_REPO_MAP,
                 f"Engine '{name}' registered but has no repo mapping in _ENGINE_REPO_MAP",
             )
+
+
+class TestStartupModelSetup(unittest.TestCase):
+    """Frozen startup must launch setup when the installed model is missing."""
+
+    def test_source_startup_does_not_launch_installer(self):
+        import dictator.__main__ as app_main
+
+        settings = SimpleNamespace(model_path=r"C:\Models")
+
+        with mock.patch.object(app_main.sys, "frozen", False, create=True):
+            with mock.patch("dictator.model_downloader.model_ready", return_value=False):
+                with mock.patch("dictator.model_downloader.launch_cohere_setup_script") as launch:
+                    self.assertTrue(app_main._ensure_startup_model_ready(settings))
+
+        launch.assert_not_called()
+
+    def test_frozen_startup_launches_installer_when_model_missing(self):
+        import dictator.__main__ as app_main
+        from PySide6.QtWidgets import QMessageBox
+
+        settings = SimpleNamespace(model_path=r"C:\Models")
+
+        with mock.patch.object(app_main.sys, "frozen", True, create=True):
+            with mock.patch(
+                "dictator.model_downloader.model_ready",
+                side_effect=[False, True],
+            ):
+                with mock.patch(
+                    "dictator.model_downloader.launch_cohere_setup_script",
+                    return_value=33,
+                ) as launch:
+                    with mock.patch(
+                        "PySide6.QtWidgets.QMessageBox.question",
+                        return_value=QMessageBox.StandardButton.Ok,
+                    ) as question:
+                        with mock.patch("PySide6.QtWidgets.QMessageBox.warning") as warning:
+                            with mock.patch("PySide6.QtWidgets.QMessageBox.critical") as critical:
+                                self.assertTrue(app_main._ensure_startup_model_ready(settings))
+
+        launch.assert_called_once_with(target_dir=settings.model_path)
+        question.assert_called_once()
+        warning.assert_not_called()
+        critical.assert_not_called()
+
+    def test_frozen_startup_shows_error_when_setup_script_missing(self):
+        import dictator.__main__ as app_main
+
+        settings = SimpleNamespace(model_path=r"C:\Models")
+
+        with mock.patch.object(app_main.sys, "frozen", True, create=True):
+            with mock.patch("dictator.model_downloader.model_ready", return_value=False):
+                with mock.patch(
+                    "dictator.model_downloader.launch_cohere_setup_script",
+                    side_effect=FileNotFoundError,
+                ):
+                    with mock.patch(
+                        "dictator.model_downloader.get_cohere_setup_script_candidates",
+                        return_value=(
+                            Path(r"C:\Program Files\dictat0r.AI\cohere-model-setup.ps1"),
+                            Path(r"C:\Coding_Projects\dictat0rAI v3\installer\cohere-model-setup.ps1"),
+                        ),
+                    ):
+                        with mock.patch("PySide6.QtWidgets.QMessageBox.critical") as critical:
+                            self.assertFalse(app_main._ensure_startup_model_ready(settings))
+
+        critical.assert_called_once()
 
 
 if __name__ == "__main__":

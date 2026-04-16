@@ -6,8 +6,10 @@ Downloads the Cohere Transcribe model from HuggingFace Hub to local storage.
 
 from __future__ import annotations
 
+import ctypes
 import logging
 import os
+from pathlib import Path
 
 log = logging.getLogger(__name__)
 
@@ -23,6 +25,56 @@ COHERE_REPO_ID = "CohereLabs/cohere-transcribe-03-2026"
 _ENGINE_REPO_MAP = {
     "cohere": COHERE_REPO_ID,
 }
+
+
+def get_cohere_setup_script_candidates() -> tuple[Path, Path]:
+    """Return the install and source locations for the setup script."""
+    from dictator.config import INSTALL_DIR
+
+    repo_root = Path(__file__).resolve().parent.parent
+    return (
+        INSTALL_DIR / "cohere-model-setup.ps1",
+        repo_root / "installer" / "cohere-model-setup.ps1",
+    )
+
+
+def find_cohere_setup_script() -> Path | None:
+    """Return the first available Cohere setup script path."""
+    for script in get_cohere_setup_script_candidates():
+        if script.is_file():
+            return script
+    return None
+
+
+def launch_cohere_setup_script(
+    target_dir: str | None = None,
+    *,
+    require_elevation: bool = True,
+) -> int:
+    """Launch the installed Cohere setup script via PowerShell.
+
+    Returns the ``ShellExecuteW`` result code. Values greater than 32
+    indicate the script was launched successfully.
+    """
+    script = find_cohere_setup_script()
+    if script is None:
+        raise FileNotFoundError("cohere-model-setup.ps1 was not found")
+
+    verb = "runas" if require_elevation else "open"
+    args = f'-NoProfile -ExecutionPolicy Bypass -File "{script}"'
+    if target_dir:
+        args += f' -TargetDir "{target_dir}"'
+
+    return int(
+        ctypes.windll.shell32.ShellExecuteW(
+            None,
+            verb,
+            "powershell.exe",
+            args,
+            str(script.parent),
+            1,
+        )
+    )
 
 
 def _is_gated_repo_error(exc: Exception) -> bool:

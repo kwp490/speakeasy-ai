@@ -10,6 +10,10 @@
 # environment variables.
 # ─────────────────────────────────────────────────────────────────────────────
 
+param(
+    [string]$TargetDir = ''
+)
+
 $ErrorActionPreference = 'Stop'
 
 $AppDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -66,8 +70,13 @@ function Start-Download {
         Write-Host 'Downloading Cohere model — this may take several minutes...' -ForegroundColor Cyan
 
         try {
+            $arguments = @('download-model', '--token', $token)
+            if ($TargetDir) {
+                $arguments += @('--target-dir', $TargetDir)
+            }
+
             $process = Start-Process -FilePath $Exe `
-                -ArgumentList "download-model --token $token" `
+                -ArgumentList $arguments `
                 -Wait -PassThru -NoNewWindow
         } catch {
             Write-Host ''

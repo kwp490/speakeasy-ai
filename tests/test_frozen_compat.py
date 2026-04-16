@@ -261,6 +261,13 @@ class TestTransitiveDependenciesInSpec(unittest.TestCase):
         hidden = self._parse_hidden_imports()
         self.assertIn("librosa", hidden)
 
+    def test_transformers_model_sources_collected(self):
+        """Frozen builds must ship the root transformers entrypoint and models source tree used by lazy imports."""
+        spec = self._read_spec()
+        self.assertIn("('transformers', {'include_py_files': True, 'includes': ['__init__.py']})", spec)
+        self.assertIn("('transformers.models', {'include_py_files': True})", spec)
+        self.assertIn("include_py_files': True", spec)
+
     def test_safetensors_in_hiddenimports(self):
         """safetensors is used by processing_cohere_asr.py for model weight loading."""
         hidden = self._parse_hidden_imports()

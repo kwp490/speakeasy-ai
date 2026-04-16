@@ -138,6 +138,88 @@ def _cmd_download_model(args: argparse.Namespace) -> int:
     return download_model("cohere", target_dir, token=args.token)
 
 
+def _ensure_startup_model_ready(settings) -> bool:
+    """Ensure the Cohere model is available before opening the main window."""
+    from PySide6.QtWidgets import QMessageBox
+    from dictator.model_downloader import (
+        get_cohere_setup_script_candidates,
+        launch_cohere_setup_script,
+        model_ready,
+    )
+
+    if model_ready("cohere", settings.model_path):
+        return True
+
+    log = logging.getLogger("dictator")
+    if not getattr(sys, "frozen", False):
+        log.warning(
+            "Cohere model not found at %s — the app will prompt for setup",
+            settings.model_path,
+        )
+        return True
+
+    model_dir = os.path.join(settings.model_path, "cohere")
+    log.error("Cohere model not found at %s (frozen build)", settings.model_path)
+
+    try:
+        launch_result = launch_cohere_setup_script(target_dir=settings.model_path)
+    except FileNotFoundError:
+        install_script, repo_script = get_cohere_setup_script_candidates()
+        QMessageBox.critical(
+            None,
+            "dictat0r.AI — Setup Script Missing",
+            "Could not find cohere-model-setup.ps1 in:\n"
+            f"  {install_script}\n"
+            f"  {repo_script}\n\n"
+            "Please reinstall dictat0r.AI or run the Cohere setup manually.",
+        )
+        return False
+    except Exception as exc:
+        log.exception("Failed to launch Cohere model setup")
+        QMessageBox.critical(
+            None,
+            "dictat0r.AI — Setup Launch Failed",
+            "The Cohere model setup could not be launched.\n\n"
+            f"{exc}",
+        )
+        return False
+
+    if launch_result <= 32:
+        log.error("Cohere setup launch returned ShellExecute code %s", launch_result)
+        QMessageBox.warning(
+            None,
+            "dictat0r.AI — Model Setup",
+            "The Cohere model setup was cancelled or could not be started.\n\n"
+            "Run dictat0r.AI again and accept the elevation prompt, or use the "
+            "Start Menu setup entry to install the model.",
+        )
+        return False
+
+    confirm = QMessageBox.question(
+        None,
+        "Cohere Setup",
+        "The Cohere model setup wizard has been launched in a\n"
+        "separate window. Click OK once it has finished.",
+        QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
+        QMessageBox.StandardButton.Ok,
+    )
+    if confirm == QMessageBox.StandardButton.Cancel:
+        return False
+
+    if model_ready("cohere", settings.model_path):
+        log.info("Cohere model detected after startup setup")
+        return True
+
+    QMessageBox.warning(
+        None,
+        "dictat0r.AI — Model Missing",
+        "The Cohere model was not detected after setup.\n\n"
+        f"Expected model directory:\n  {model_dir}\n\n"
+        "You can rerun the setup from the Start Menu or the install directory.",
+    )
+    return False
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 def main() -> int:
@@ -180,31 +262,8 @@ def main() -> int:
 
     settings = Settings.load()
 
-    # ── Early model-presence check ───────────────────────────────────────
-    from dictator.model_downloader import model_ready
-
-    if not model_ready("cohere", settings.model_path):
-        log = logging.getLogger("dictator")
-        if getattr(sys, "frozen", False):
-            # Frozen (installed) build — the installer should have placed the
-            # model.  Show a blocking error so the problem is immediately
-            # visible rather than silently failing in the background.
-            log.error(
-                "Cohere model not found at %s (frozen build)", settings.model_path
-            )
-            QMessageBox.warning(
-                None,
-                "dictat0r.AI — Model Missing",
-                f"The Cohere Transcribe model was not found at:\n"
-                f"  {settings.model_path}\\cohere\n\n"
-                f"Please run the Cohere model setup from the Start Menu or\n"
-                f"reinstall dictat0r.AI to download the model.",
-            )
-        else:
-            log.warning(
-                "Cohere model not found at %s — the app will prompt for setup",
-                settings.model_path,
-            )
+    if not _ensure_startup_model_ready(settings):
+        return 1
 
     window = MainWindow(settings)
     window.show()

@@ -16,12 +16,22 @@ binaries = collect_dynamic_libs('sounddevice')
 # Collect all native libs from torch so shm.dll and its deps are bundled
 binaries += collect_dynamic_libs('torch')
 
-# Collect only transformers data files needed by Cohere ASR engine.
+# transformers>=5.5 scans transformers/models on disk from __init__.py,
+# and Auto* helpers reach cross-model packages like encoder_decoder during
+# normal Cohere loading. Keep the root __init__.py and the models tree as
+# real .py files under _internal/transformers instead of only in the PYZ.
 datas = []
-for _subpkg in ('transformers', 'transformers.models.auto',
-                 'transformers.models.cohere_asr'):
+try:
+    datas += collect_data_files('transformers', include_py_files=False)
+except Exception:
+    pass
+
+for _subpkg, _kwargs in (
+    ('transformers', {'include_py_files': True, 'includes': ['__init__.py']}),
+    ('transformers.models', {'include_py_files': True}),
+):
     try:
-        datas += collect_data_files(_subpkg, include_py_files=False)
+        datas += collect_data_files(_subpkg, **_kwargs)
     except Exception:
         pass
 

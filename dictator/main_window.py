@@ -1264,63 +1264,48 @@ class MainWindow(QMainWindow):
     def _run_cohere_setup_script(self) -> bool:
         """Launch ``cohere-model-setup.ps1`` elevated and return True if
         the model is present afterwards."""
-        import subprocess
+        from .model_downloader import (
+            get_cohere_setup_script_candidates,
+            launch_cohere_setup_script,
+        )
 
-        from .config import INSTALL_DIR
+        install_script, repo_script = get_cohere_setup_script_candidates()
+        if install_script == repo_script:
+            searched_paths = f"  {install_script}"
+        else:
+            searched_paths = f"  {install_script}\n  {repo_script}"
 
-        # In production the script lives next to dictator.exe in INSTALL_DIR.
-        # During development DICTATOR_HOME points at dev-temp/, so fall back
-        # to the repo's installer/ directory.
-        script = INSTALL_DIR / "cohere-model-setup.ps1"
-        if not script.is_file():
-            repo_root = Path(__file__).resolve().parent.parent
-            script = repo_root / "installer" / "cohere-model-setup.ps1"
-        if not script.is_file():
+        model_dir = Path(self.settings.model_path) / "cohere"
+
+        self._log_ui("Launching Cohere model setup…")
+        try:
+            ret = launch_cohere_setup_script(target_dir=self.settings.model_path)
+        except FileNotFoundError:
             QMessageBox.critical(
                 self,
                 "Setup Script Missing",
                 f"Could not find cohere-model-setup.ps1 in:\n"
-                f"  {INSTALL_DIR}\n"
-                f"  {Path(__file__).resolve().parent.parent / 'installer'}\n\n"
+                f"{searched_paths}\n\n"
                 "Please reinstall dictat0r.AI or run the Cohere setup manually.",
             )
             return False
-
-        self._log_ui("Launching Cohere model setup…")
-        try:
-            # Use ShellExecute with 'runas' to request elevation
-            import ctypes
-            ret = ctypes.windll.shell32.ShellExecuteW(
-                None,
-                "runas",
-                "powershell.exe",
-                (
-                    f'-NoProfile -ExecutionPolicy Bypass '
-                    f'-File "{script}"'
-                ),
-                str(INSTALL_DIR),
-                1,  # SW_SHOWNORMAL
-            )
-            if ret <= 32:
-                self._log_ui("Cohere setup was cancelled or failed to launch", error=True)
-                return False
-
-            # ShellExecuteW doesn't wait — use a polling approach with a
-            # subprocess that waits for the PowerShell window to finish.
-            # Instead, just prompt the user to confirm when done.
-            confirm = QMessageBox.question(
-                self,
-                "Cohere Setup",
-                "The Cohere model setup wizard has been launched in a\n"
-                "separate window. Click OK once it has finished.",
-                QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
-                QMessageBox.StandardButton.Ok,
-            )
-            if confirm == QMessageBox.StandardButton.Cancel:
-                return False
-
         except Exception as exc:
             self._log_ui(f"Failed to launch Cohere setup: {exc}", error=True)
+            return False
+
+        if ret <= 32:
+            self._log_ui("Cohere setup was cancelled or failed to launch", error=True)
+            return False
+
+        confirm = QMessageBox.question(
+            self,
+            "Cohere Setup",
+            "The Cohere model setup wizard has been launched in a\n"
+            "separate window. Click OK once it has finished.",
+            QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Ok,
+        )
+        if confirm == QMessageBox.StandardButton.Cancel:
             return False
 
         # Check if the model was actually downloaded
@@ -1332,6 +1317,7 @@ class MainWindow(QMainWindow):
                 self,
                 "Cohere Model Not Found",
                 "The Cohere model was not detected after setup.\n\n"
+                f"Expected model directory:\n  {model_dir}\n\n"
                 "You can try again later from Settings, or run\n"
                 "cohere-model-setup.ps1 from the install directory.",
             )

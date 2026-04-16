@@ -3,6 +3,7 @@
 import os
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from dictator.model_downloader import (
@@ -13,6 +14,7 @@ from dictator.model_downloader import (
     _ENGINE_REPO_MAP,
     _is_gated_repo_error,
     download_model,
+    launch_cohere_setup_script,
     model_ready,
 )
 
@@ -158,3 +160,33 @@ class TestDownloadModelExitCodes(unittest.TestCase):
                 call_kwargs = mock_hf.snapshot_download.call_args
                 self.assertEqual(call_kwargs.kwargs.get("token"), "hf_test123",
                     "snapshot_download must receive the exact token string passed to download_model")
+
+
+class TestCohereSetupLauncher(unittest.TestCase):
+    """Installed-model setup launch helpers must pass the expected arguments."""
+
+    def test_launch_raises_when_setup_script_missing(self):
+        with patch("dictator.model_downloader.find_cohere_setup_script", return_value=None):
+            with self.assertRaises(FileNotFoundError):
+                launch_cohere_setup_script()
+
+    def test_launch_passes_target_dir_to_powershell(self):
+        script = Path(r"C:\Program Files\dictat0r.AI\cohere-model-setup.ps1")
+        target_dir = r"C:\Users\kenpe\AppData\Local\dictat0r.AI\models"
+
+        with patch("dictator.model_downloader.find_cohere_setup_script", return_value=script):
+            with patch(
+                "dictator.model_downloader.ctypes.windll.shell32.ShellExecuteW",
+                return_value=42,
+            ) as shell_execute:
+                rc = launch_cohere_setup_script(target_dir=target_dir)
+
+        self.assertEqual(rc, 42)
+        shell_execute.assert_called_once_with(
+            None,
+            "runas",
+            "powershell.exe",
+            f'-NoProfile -ExecutionPolicy Bypass -File "{script}" -TargetDir "{target_dir}"',
+            str(script.parent),
+            1,
+        )
