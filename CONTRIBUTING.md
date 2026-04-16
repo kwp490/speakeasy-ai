@@ -67,6 +67,17 @@ Or run the combined build script:
 .\installer\Build-Installer.ps1
 ```
 
+## Creating a Release
+
+The README download link targets GitHub's latest published release. To publish a new installer release:
+
+```bash
+git tag v0.3.0
+git push origin v0.3.0
+```
+
+Pushing a `v*` tag triggers [.github/workflows/release.yml](.github/workflows/release.yml), which builds the installer, uploads the `.exe` and `SHA256SUMS.txt`, and publishes the GitHub Release.
+
 ## Filing Issues
 
 Please use the [GitHub Issues](https://github.com/kwp490/dictat0rAI-v3/issues) page. Include:

@@ -44,4 +44,4 @@ jobs:
             installer/Output/dictator-AI-Setup-*.exe
             installer/Output/SHA256SUMS.txt
           body_path: installer/Output/release-notes.md
-          draft: true
+          draft: false
