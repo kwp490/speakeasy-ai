@@ -62,28 +62,28 @@ Set-ExecutionPolicy Bypass -Scope Process -Force
 
 ## Settings
 
-| Setting | Default | Description |
-| --- | --- | --- |
-| `engine` | `cohere` | Speech engine (Cohere Transcribe) |
-| `model_path` | `C:\Program Files\dictat0r.AI\models` | Directory for model weights |
-| `device` | `cuda` | Inference device: `cuda` or `cpu` |
-| `language` | `en` | Language code |
-| `punctuation` | `true` | Enable automatic punctuation in transcription |
-| `inference_timeout` | `30` | Max seconds per transcription |
-| `auto_copy` | `true` | Auto-copy transcription to clipboard |
-| `auto_paste` | `true` | Auto-paste via Ctrl+V after transcription |
-| `hotkeys_enabled` | `true` | Master toggle for global hotkeys |
-| `hotkey_start` | `ctrl+alt+p` | Start-recording hotkey |
-| `hotkey_stop` | `ctrl+alt+l` | Stop/transcribe hotkey |
-| `hotkey_quit` | `ctrl+alt+q` | Quit application hotkey |
-| `clear_logs_on_exit` | `true` | Clear log files when the application exits |
-| `mic_device_index` | `-1` | Microphone device index (`-1` = system default) |
-| `sample_rate` | `16000` | Recording sample rate (Hz) — resampled to 16 kHz |
-| `silence_threshold` | `0.0015` | RMS threshold for silence detection |
-| `silence_margin_ms` | `500` | Silence margin (ms) added around voiced regions |
-| `professional_mode` | `false` | Enable AI text cleanup (requires OpenAI API key) |
-| `pro_active_preset` | `General Professional` | Active Professional Mode preset name |
-| `store_api_key` | `false` | Persist API key in Windows Credential Manager |
+| Setting              | Default                                | Description                                      |
+| -------------------- | -------------------------------------- | ------------------------------------------------ |
+| `engine`             | `cohere`                               | Speech engine (Cohere Transcribe)                |
+| `model_path`         | `C:\Program Files\dictat0r.AI\models` | Directory for model weights                      |
+| `device`             | `cuda`                                 | Inference device: `cuda` or `cpu`                |
+| `language`           | `en`                                   | Language code                                    |
+| `punctuation`        | `true`                                 | Enable automatic punctuation in transcription    |
+| `inference_timeout`  | `30`                                   | Max seconds per transcription                    |
+| `auto_copy`          | `true`                                 | Auto-copy transcription to clipboard             |
+| `auto_paste`         | `true`                                 | Auto-paste via Ctrl+V after transcription        |
+| `hotkeys_enabled`    | `true`                                 | Master toggle for global hotkeys                 |
+| `hotkey_start`       | `ctrl+alt+p`                           | Start-recording hotkey                           |
+| `hotkey_stop`        | `ctrl+alt+l`                           | Stop/transcribe hotkey                           |
+| `hotkey_quit`        | `ctrl+alt+q`                           | Quit application hotkey                          |
+| `clear_logs_on_exit` | `true`                                 | Clear log files when the application exits       |
+| `mic_device_index`   | `-1`                                   | Microphone device index (`-1` = system default)  |
+| `sample_rate`        | `16000`                                | Recording sample rate (Hz) - resampled to 16 kHz |
+| `silence_threshold`  | `0.0015`                               | RMS threshold for silence detection              |
+| `silence_margin_ms`  | `500`                                  | Silence margin (ms) added around voiced regions  |
+| `professional_mode`  | `false`                                | Enable AI text cleanup (requires OpenAI API key) |
+| `pro_active_preset`  | `General Professional`                 | Active Professional Mode preset name             |
+| `store_api_key`      | `false`                                | Persist API key in Windows Credential Manager    |
 
 Settings are stored at `C:\Program Files\dictat0r.AI\config\settings.json`.
 
