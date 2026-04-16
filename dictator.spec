@@ -55,7 +55,7 @@ a = Analysis(
         'librosa',
         'safetensors',
     ],
-    hookspath=[],
+    hookspath=['hooks'],
     hooksconfig={},
     runtime_hooks=['dictator/_runtime_hook_dll.py'],
     excludes=[
@@ -79,6 +79,15 @@ a = Analysis(
         'transformers.training_args',
         'transformers.training_args_seq2seq',
         'transformers.optimization',
+        # Model families not used by the Cohere-only runtime
+        'transformers.models.whisper',
+        'transformers.models.nemotron',
+        'transformers.models.nemotron_h',
+        'transformers.models.granite',
+        'transformers.models.granite_speech',
+        'transformers.models.granitemoe',
+        'transformers.models.granitemoehybrid',
+        'transformers.models.granitemoeshared',
         # ── Dev / build tools not needed at runtime ────────────────────
         'setuptools',
         'pkg_resources',
@@ -108,6 +117,10 @@ _STRIP_PATTERNS = [
     _re.compile(r'PySide6[\\/]plugins[\\/]platforminputcontexts[\\/]qtvirtualkeyboardplugin', _re.I),
     _re.compile(r'PySide6[\\/]plugins[\\/]networkinformation[\\/]qnetworklistmanager', _re.I),
     _re.compile(r'PySide6[\\/]plugins[\\/]imageformats[\\/](?:qpdf|qicns|qtga|qtiff|qwbmp|qwebp)\.dll', _re.I),
+    # Unused transformer model families that otherwise create stale bundle payloads
+    _re.compile(r'transformers(?:[\\/.]|$)models(?:[\\/.])whisper(?:[\\/.]|$)', _re.I),
+    _re.compile(r'transformers(?:[\\/.]|$)models(?:[\\/.])nemotron(?:_h)?(?:[\\/.]|$)', _re.I),
+    _re.compile(r'transformers(?:[\\/.]|$)models(?:[\\/.])granite(?:_speech|moe(?:hybrid|shared)?)?(?:[\\/.]|$)', _re.I),
     # sklearn is not used by the active Cohere path; drop any leftover package/data payload
     _re.compile(r'(?:^|[\\/])sklearn[\\/]', _re.I),
     _re.compile(r'(?:^|[\\/])scikit_learn-[^\\/]+\.dist-info[\\/]', _re.I),
@@ -130,6 +143,7 @@ def _filter_entries(entries):
     return [entry for entry in entries if _should_keep(entry)]
 
 
+a.pure = _filter_entries(a.pure)
 a.binaries = _filter_entries(a.binaries)
 a.datas = _filter_entries(a.datas)
 
