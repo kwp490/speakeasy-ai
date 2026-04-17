@@ -8,7 +8,7 @@ Press a hotkey, speak, and your transcribed text is pasted into the active windo
 
 There are two ways to install dictat0r.AI: download the pre-built installer (recommended), or build from source.
 
-**Requirements (both methods):** Windows 10/11 (64-bit), NVIDIA GPU (RTX 30-series or newer, 6+ GB VRAM recommended), NVIDIA Driver 525+, [HuggingFace account](https://huggingface.co/join) with access to [CohereLabs/cohere-transcribe-03-2026](https://huggingface.co/CohereLabs/cohere-transcribe-03-2026).
+**Requirements (both methods):** Windows 10/11 (64-bit), [HuggingFace account](https://huggingface.co/join) with access to [CohereLabs/cohere-transcribe-03-2026](https://huggingface.co/CohereLabs/cohere-transcribe-03-2026). An NVIDIA GPU (RTX 30-series or newer, 6+ GB VRAM, Driver 525+) is recommended for fast inference but not required — the app can run on CPU (slower).
 
 ### Option 1 — Installer (recommended)
 
@@ -24,7 +24,7 @@ Double-click the installer and follow the prompts. No Python, no command line re
 
 ### Option 2 — Run from source
 
-For developers or users who prefer to build and run from source:
+For developers or users who prefer to build and run from source. Requires [Git](https://git-scm.com/downloads/win) and [uv](https://docs.astral.sh/uv/) (installed in step 1 below).
 
 ```powershell
 # 1. Install uv (Python package manager)
