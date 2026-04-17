@@ -28,6 +28,13 @@
     In Source mode, reset dev-temp config/logs/temp before launch so stale
     development settings do not leak into the session.
 
+.PARAMETER RamDisk
+    Redirect build/ and dist/ to a RAM disk (R:\ by default) via NTFS
+    directory junctions for faster PyInstaller I/O.  Falls back to local
+    directories when the RAM disk is not present.
+    One-time setup with ImDisk Toolkit:
+        imdisk -a -s 10G -m R: -p "/fs:ntfs /q /y"
+
 .EXAMPLE
     .\Test-Dictator.ps1                 # interactive menu
     .\Test-Dictator.ps1 -Mode Source    # skip menu, run from source
@@ -35,6 +42,7 @@
     .\Test-Dictator.ps1 -Mode Source -Clean       # reset dev-temp state, run from source
     .\Test-Dictator.ps1 -Mode Source -SkipTests   # skip tests, run from source
     .\Test-Dictator.ps1 -Mode Release -Fast        # release build with fast compression
+    .\Test-Dictator.ps1 -Mode Release -RamDisk     # build via RAM disk junctions
 
 .NOTES
     Run from the repository root.
@@ -49,7 +57,9 @@ param(
 
     [switch]$Clean,
 
-    [switch]$Fast
+    [switch]$Fast,
+
+    [switch]$RamDisk
 )
 
 Set-StrictMode -Version Latest
@@ -239,6 +249,7 @@ if ($Mode -eq 'Release') {
         if ($SkipTests) { $elevateArgs += '-SkipTests' }
         if ($Clean)     { $elevateArgs += '-Clean' }
         if ($Fast)      { $elevateArgs += '-Fast' }
+        if ($RamDisk)   { $elevateArgs += '-RamDisk' }
         try {
             Start-Process powershell.exe -Verb RunAs -ArgumentList $elevateArgs
         } catch {
@@ -260,8 +271,9 @@ if ($Mode -eq 'Release') {
     }
 
     $buildArgs = @()
-    if ($Clean) { $buildArgs += '-Clean' }
-    if ($Fast)  { $buildArgs += '-Fast' }
+    if ($Clean)   { $buildArgs += '-Clean' }
+    if ($Fast)    { $buildArgs += '-Fast' }
+    if ($RamDisk) { $buildArgs += '-RamDisk' }
 
     $prevPref = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'

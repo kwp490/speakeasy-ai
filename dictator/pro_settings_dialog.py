@@ -25,8 +25,6 @@ from PySide6.QtWidgets import (
     QInputDialog,
     QLabel,
     QLineEdit,
-    QListWidget,
-    QListWidgetItem,
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
@@ -70,9 +68,11 @@ class ProSettingsDialog(QDialog):
         self._presets_dir = presets_dir
         self._api_key = api_key
         self._active_preset_name: str = settings.pro_active_preset
+        self._displayed_preset_name: str = ""
 
         self.setWindowTitle("Professional Mode Settings")
-        self.setMinimumSize(700, 500)
+        self.setMinimumSize(700, 850)
+        self.resize(700, 950)
         self._build_ui()
         self._populate()
 
@@ -94,10 +94,6 @@ class ProSettingsDialog(QDialog):
 
         self._pro_enabled = QCheckBox("Enable Professional Mode")
         enable_form.addRow(self._pro_enabled)
-
-        self._pro_preset_combo = QComboBox()
-        self._pro_preset_combo.setMinimumWidth(160)
-        enable_form.addRow("Active preset:", self._pro_preset_combo)
 
         enable_group.setLayout(enable_form)
         layout.addWidget(enable_group)
@@ -146,9 +142,13 @@ class ProSettingsDialog(QDialog):
         presets_group = QGroupBox("Presets")
         presets_layout = QVBoxLayout()
 
-        self._preset_list = QListWidget()
-        self._preset_list.currentItemChanged.connect(self._on_preset_selected)
-        presets_layout.addWidget(self._preset_list)
+        preset_select_row = QHBoxLayout()
+        preset_select_row.addWidget(QLabel("Preset:"))
+        self._preset_combo = QComboBox()
+        self._preset_combo.setMinimumWidth(200)
+        self._preset_combo.currentTextChanged.connect(self._on_preset_selected)
+        preset_select_row.addWidget(self._preset_combo, 1)
+        presets_layout.addLayout(preset_select_row)
 
         btn_row = QHBoxLayout()
         self._btn_new_preset = QPushButton("New")
@@ -239,20 +239,20 @@ class ProSettingsDialog(QDialog):
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok
             | QDialogButtonBox.StandardButton.Cancel
+            | QDialogButtonBox.StandardButton.Apply
         )
         buttons.accepted.connect(self._save_and_accept)
         buttons.rejected.connect(self.reject)
+        buttons.button(QDialogButtonBox.StandardButton.Apply).clicked.connect(
+            self._on_apply
+        )
         outer.addWidget(buttons)
 
     # ── Populate / Save ──────────────────────────────────────────────────
 
     def _populate(self) -> None:
-        # Enable toggle + active preset combo
+        # Enable toggle
         self._pro_enabled.setChecked(self._settings.professional_mode)
-        self._refresh_preset_combo()
-        idx = self._pro_preset_combo.findText(self._active_preset_name)
-        if idx >= 0:
-            self._pro_preset_combo.setCurrentIndex(idx)
 
         # API section
         if self._api_key:
@@ -264,51 +264,36 @@ class ProSettingsDialog(QDialog):
 
         self._pro_store_key.setChecked(self._settings.store_api_key)
 
-        # Populate preset list
-        self._refresh_preset_list()
+        # Populate preset combo and select active preset
+        self._refresh_preset_combo()
+        idx = self._preset_combo.findText(self._active_preset_name)
+        if idx >= 0:
+            self._preset_combo.setCurrentIndex(idx)
 
-        # Select active preset
-        for i in range(self._preset_list.count()):
-            item = self._preset_list.item(i)
-            if item and item.text() == self._active_preset_name:
-                self._preset_list.setCurrentItem(item)
-                break
-
-    def _refresh_preset_combo(self) -> None:
-        """Populate the active-preset combo from loaded presets."""
-        self._pro_preset_combo.blockSignals(True)
-        self._pro_preset_combo.clear()
+    def _refresh_preset_combo(self, select_name: str | None = None) -> None:
+        """Populate the preset combo from loaded presets, preserving selection."""
+        current = select_name or self._preset_combo.currentText()
+        self._preset_combo.blockSignals(True)
+        self._preset_combo.clear()
         for name in sorted(self._presets.keys()):
-            self._pro_preset_combo.addItem(name)
-        self._pro_preset_combo.blockSignals(False)
-
-    def _refresh_preset_list(self) -> None:
-        current_name = None
-        if self._preset_list.currentItem():
-            current_name = self._preset_list.currentItem().text()
-
-        self._preset_list.clear()
-        for name in sorted(self._presets.keys()):
-            item = QListWidgetItem(name)
-            if name in BUILTIN_PRESET_NAMES:
-                item.setToolTip("Built-in preset")
-            self._preset_list.addItem(item)
-
+            self._preset_combo.addItem(name)
         # Restore selection
-        if current_name:
-            for i in range(self._preset_list.count()):
-                item = self._preset_list.item(i)
-                if item and item.text() == current_name:
-                    self._preset_list.setCurrentItem(item)
-                    return
+        idx = self._preset_combo.findText(current)
+        if idx >= 0:
+            self._preset_combo.setCurrentIndex(idx)
+        self._preset_combo.blockSignals(False)
+        # Trigger detail load for the current selection
+        if self._preset_combo.currentText():
+            self._on_preset_selected(self._preset_combo.currentText())
 
-    def _save_and_accept(self) -> None:
+    def _save_settings(self) -> None:
+        """Persist all dialog state to settings and disk (without closing)."""
         # Flush current preset edits
         self._flush_preset_edits()
 
         # Professional Mode enable/preset
         self._settings.professional_mode = self._pro_enabled.isChecked()
-        preset_name = self._pro_preset_combo.currentText()
+        preset_name = self._preset_combo.currentText()
         if preset_name:
             self._settings.pro_active_preset = preset_name
 
@@ -336,14 +321,21 @@ class ProSettingsDialog(QDialog):
 
         self._settings.save()
         log.info("Professional Mode settings saved")
+
+    def _save_and_accept(self) -> None:
+        self._save_settings()
         self.accept()
+
+    def _on_apply(self) -> None:
+        """Save all settings without closing the dialog."""
+        self._save_settings()
 
     # ── Preset management ────────────────────────────────────────────────
 
     def _current_preset(self) -> ProPreset | None:
-        item = self._preset_list.currentItem()
-        if item:
-            return self._presets.get(item.text())
+        name = self._preset_combo.currentText()
+        if name:
+            return self._presets.get(name)
         return None
 
     def _flush_preset_edits(self) -> None:
@@ -371,17 +363,19 @@ class ProSettingsDialog(QDialog):
         preset.system_prompt = self._instructions_edit.toPlainText()
         preset.vocabulary = self._vocab_edit.toPlainText()
 
-    def _on_preset_selected(self, current: QListWidgetItem | None, previous: QListWidgetItem | None) -> None:
-        # Flush edits for the previously selected preset
-        if previous and previous.text() in self._presets:
-            self._flush_preset_edits_for(previous.text())
+    def _on_preset_selected(self, text: str) -> None:
+        # Flush edits for the previously displayed preset
+        if self._displayed_preset_name and self._displayed_preset_name in self._presets:
+            self._flush_preset_edits_for(self._displayed_preset_name)
 
-        if current is None:
+        if not text:
             return
 
-        preset = self._presets.get(current.text())
+        preset = self._presets.get(text)
         if preset is None:
             return
+
+        self._displayed_preset_name = text
 
         # Populate detail widgets
         self._preset_name_edit.setText(preset.name)
@@ -440,13 +434,7 @@ class ProSettingsDialog(QDialog):
 
         preset = ProPreset(name=name)
         self._presets[name] = preset
-        self._refresh_preset_list()
-        # Select new preset
-        for i in range(self._preset_list.count()):
-            item = self._preset_list.item(i)
-            if item and item.text() == name:
-                self._preset_list.setCurrentItem(item)
-                break
+        self._refresh_preset_combo(select_name=name)
 
     def _on_duplicate_preset(self) -> None:
         source = self._current_preset()
@@ -471,12 +459,7 @@ class ProSettingsDialog(QDialog):
         dup = ProPreset(**asdict(source))
         dup.name = name
         self._presets[name] = dup
-        self._refresh_preset_list()
-        for i in range(self._preset_list.count()):
-            item = self._preset_list.item(i)
-            if item and item.text() == name:
-                self._preset_list.setCurrentItem(item)
-                break
+        self._refresh_preset_combo(select_name=name)
 
     def _on_delete_preset(self) -> None:
         preset = self._current_preset()
@@ -499,7 +482,8 @@ class ProSettingsDialog(QDialog):
 
         delete_preset(preset.name, self._presets_dir)
         del self._presets[preset.name]
-        self._refresh_preset_list()
+        self._displayed_preset_name = ""
+        self._refresh_preset_combo()
 
     # ── API key helpers ──────────────────────────────────────────────────
 

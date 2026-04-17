@@ -25,17 +25,26 @@
     the release-quality lzma2/ultra64 solid compression. Produces a larger
     installer but compiles much faster. Intended for dev/test builds.
 
+.PARAMETER RamDisk
+    Redirect build/ and dist/ to a RAM disk via NTFS directory junctions for
+    faster I/O. Expects a formatted NTFS volume at R:\ (configurable via
+    $RamDiskDrive below). Falls back to local directories if the drive is
+    absent. One-time setup with ImDisk Toolkit:
+        imdisk -a -s 10G -m R: -p "/fs:ntfs /q /y"
+
 .NOTES
     Usage:
-        .\installer\Build-Installer.ps1                  # incremental release build
+        .\installer\Build-Installer.ps1                   # incremental release build
         .\installer\Build-Installer.ps1 -Fast             # fast dev build
         .\installer\Build-Installer.ps1 -Clean            # force full rebuild
         .\installer\Build-Installer.ps1 -InnoOnly -Fast   # repackage existing dist/ quickly
+        .\installer\Build-Installer.ps1 -RamDisk          # build via RAM disk junctions
 #>
 param(
     [switch]$Clean,
     [switch]$InnoOnly,
-    [switch]$Fast
+    [switch]$Fast,
+    [switch]$RamDisk
 )
 
 Set-StrictMode -Version Latest
@@ -46,6 +55,88 @@ Push-Location $RepoRoot
 
 function Write-Step($msg) { Write-Host "`n>> $msg" -ForegroundColor Cyan }
 function Write-Ok($msg)   { Write-Host "  [OK] $msg" -ForegroundColor Green }
+
+# ── RAM disk drive letter (change this if R: conflicts) ───────────────────────
+$RamDiskDrive = 'R:'
+
+# ── RAM disk junction helper ──────────────────────────────────────────────────
+# Creates NTFS junctions from build/ and dist/ to folders on a RAM disk so
+# PyInstaller I/O (thousands of files in torch/transformers) hits ~100ns RAM
+# latency instead of ~6µs NVMe latency.  All downstream consumers (Inno Setup,
+# tests, Test-Dictator.ps1) see the same repo-relative paths.
+function Initialize-RamDiskJunctions {
+    if (-not (Test-Path $RamDiskDrive)) {
+        # RAM disk not mounted — try to auto-provision with ImDisk
+        $imdisk = Get-Command imdisk -ErrorAction SilentlyContinue
+        if (-not $imdisk) {
+            Write-Host "  [WARN] RAM disk $RamDiskDrive not found and ImDisk is not installed." -ForegroundColor Yellow
+            Write-Host "  Install ImDisk Toolkit: https://sourceforge.net/projects/imdisk-toolkit/" -ForegroundColor DarkGray
+            Write-Host "  Or: winget install OliverSchneider.ImDiskToolkit" -ForegroundColor DarkGray
+            return
+        }
+
+        $driveLetter = $RamDiskDrive.TrimEnd(':')
+        Write-Host "  Provisioning 10 GB RAM disk on ${RamDiskDrive}..." -ForegroundColor DarkGray
+        $prevPref = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            imdisk -a -s 10G -m "$driveLetter" -p "/fs:ntfs /q /y" 2>&1 |
+                ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
+        } finally {
+            $ErrorActionPreference = $prevPref
+        }
+
+        if (-not (Test-Path $RamDiskDrive)) {
+            Write-Host "  [WARN] Failed to create RAM disk. Using local build/dist directories." -ForegroundColor Yellow
+            return
+        }
+        Write-Ok "RAM disk provisioned on $RamDiskDrive (10 GB, NTFS)"
+    } else {
+        Write-Ok "RAM disk $RamDiskDrive already mounted"
+    }
+
+    foreach ($pair in @(
+        @{ Local = 'build'; Remote = "$RamDiskDrive\dictator-build" },
+        @{ Local = 'dist';  Remote = "$RamDiskDrive\dictator-dist" }
+    )) {
+        $local  = $pair.Local
+        $remote = $pair.Remote
+
+        # Ensure remote target exists
+        if (-not (Test-Path $remote)) {
+            New-Item -ItemType Directory -Path $remote -Force | Out-Null
+        }
+
+        # If local path is already a junction pointing to the right target, no-op
+        if (Test-Path $local) {
+            $item = Get-Item $local -Force
+            if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+                $target = ($item | Select-Object -ExpandProperty Target) 2>$null
+                if ($target -eq $remote) {
+                    Write-Ok "$local -> $remote (junction exists)"
+                    continue
+                }
+                # Junction points elsewhere — remove it
+                cmd /c rmdir "$local" | Out-Null
+            } else {
+                # Real directory — migrate contents to RAM disk, then remove
+                if ((Get-ChildItem $local -Force | Measure-Object).Count -gt 0) {
+                    Write-Host "  Migrating $local contents to $remote..." -ForegroundColor DarkGray
+                    Get-ChildItem $local -Force | Move-Item -Destination $remote -Force
+                }
+                Remove-Item $local -Recurse -Force
+            }
+        }
+
+        # Create junction
+        cmd /c mklink /J "$local" "$remote" | Out-Null
+        if (Test-Path $local) {
+            Write-Ok "$local -> $remote (junction created)"
+        } else {
+            Write-Host "  [WARN] Failed to create junction $local -> $remote" -ForegroundColor Yellow
+        }
+    }
+}
 
 # ── Source-hash helper ────────────────────────────────────────────────────────
 # Computes a hash over all files that affect the PyInstaller output so we can
@@ -136,6 +227,12 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 Write-Ok "torch/torchaudio compatible"
+
+# ── RAM disk junctions (opt-in) ──────────────────────────────────────────────
+if ($RamDisk) {
+    Write-Step "Setting up RAM disk junctions..."
+    Initialize-RamDiskJunctions
+}
 
 # ── Step 1: PyInstaller ──────────────────────────────────────────────────────
 if ($InnoOnly) {
