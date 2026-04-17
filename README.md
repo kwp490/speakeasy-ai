@@ -4,13 +4,17 @@
 
 Press a hotkey, speak, and your transcribed text is pasted into the active window. GPU-accelerated, runs natively — no setup complexity.
 
-## Download & Install
+## Getting Started
 
-> **[Download the latest installer](https://github.com/kwp490/dictat0rAI-v3/releases/latest)**
->
-> Double-click the installer and follow the prompts. No Python, no command line required.
+There are two ways to install dictat0r.AI: download the pre-built installer (recommended), or build from source.
 
-The installer will:
+**Requirements (both methods):** Windows 10/11 (64-bit), NVIDIA GPU (RTX 30-series or newer, 6+ GB VRAM recommended), NVIDIA Driver 525+, [HuggingFace account](https://huggingface.co/join) with access to [CohereLabs/cohere-transcribe-03-2026](https://huggingface.co/CohereLabs/cohere-transcribe-03-2026).
+
+### Option 1 — Installer (recommended)
+
+Download **[dictator-AI-Setup-0.3.0.exe](https://github.com/kwp490/dictat0rAI-v3/releases/download/v0.3.0/dictator-AI-Setup-0.3.0.exe)** from the [Releases](https://github.com/kwp490/dictat0rAI-v3/releases/latest) page.
+
+Double-click the installer and follow the prompts. No Python, no command line required. The installer will:
 
 1. Extract application files to `C:\Program Files\dictat0r.AI`
 2. Prompt for your HuggingFace API token (required for gated model access)
@@ -18,32 +22,15 @@ The installer will:
 4. Create desktop and Start Menu shortcuts
 5. Configure Windows Defender exclusions
 
-**Requirements:** Windows 10/11 (64-bit), NVIDIA GPU (RTX 30-series or newer, 6+ GB VRAM recommended), NVIDIA Driver 525+, [HuggingFace account](https://huggingface.co/join) with access to [CohereLabs/cohere-transcribe-03-2026](https://huggingface.co/CohereLabs/cohere-transcribe-03-2026).
+### Option 2 — Run from source
 
-## Features
-
-- **Cohere Transcribe 03-2026**: High-accuracy 2B-parameter ASR model, 14 languages, ~5 GB VRAM
-- **Professional Mode**: AI-powered text cleanup via OpenAI API with a preset system — 5 built-in presets, custom presets, domain vocabulary preservation, and per-preset model selection
-- **Punctuation control**: Enable or disable automatic punctuation in transcription output
-- **Global hotkeys**: Start/stop recording from any application (configurable bindings)
-- **Auto-paste**: Transcribed text goes directly to your active window
-- **GPU-accelerated**: Leverages NVIDIA CUDA for fast inference
-- **Microphone selection**: Choose a specific input device or use the system default
-- **Sleep/wake recovery**: Hotkeys automatically re-register after Windows resume from sleep
-- **Single-instance guard**: Prevents multiple dictat0r.AI processes from running simultaneously
-- **Real-time resource monitoring**: RAM, VRAM, and GPU temperature displayed in the diagnostics panel
-- **Audio feedback**: Beep tones on recording start/stop
-- **Runs natively on Windows** — single installer, no dependencies
-
-## Source Install
-
-For developers or users who want to run from source:
+For developers or users who prefer to build and run from source:
 
 ```powershell
-# 1. Install uv
+# 1. Install uv (Python package manager)
 irm https://astral.sh/uv/install.ps1 | iex
 
-# 2. Clone and install
+# 2. Clone and install dependencies
 git clone https://github.com/kwp490/dictat0rAI-v3.git
 cd dictat0rAI-v3
 uv sync
@@ -59,6 +46,21 @@ Or use the automated source installer (requires admin):
 Set-ExecutionPolicy Bypass -Scope Process -Force
 .\installer\Install-Dictator-Source.ps1
 ```
+
+## Features
+
+- **Cohere Transcribe 03-2026**: High-accuracy 2B-parameter ASR model, 14 languages, ~5 GB VRAM
+- **Professional Mode**: AI-powered text cleanup via OpenAI API with a preset system — 5 built-in presets, custom presets, domain vocabulary preservation, and per-preset model selection
+- **Punctuation control**: Enable or disable automatic punctuation in transcription output
+- **Global hotkeys**: Start/stop recording from any application (configurable bindings)
+- **Auto-paste**: Transcribed text goes directly to your active window
+- **GPU-accelerated**: Leverages NVIDIA CUDA for fast inference
+- **Microphone selection**: Choose a specific input device or use the system default
+- **Sleep/wake recovery**: Hotkeys automatically re-register after Windows resume from sleep
+- **Single-instance guard**: Prevents multiple dictat0r.AI processes from running simultaneously
+- **Real-time resource monitoring**: RAM, VRAM, and GPU temperature displayed in the diagnostics panel
+- **Audio feedback**: Beep tones on recording start/stop
+- **Runs natively on Windows** — single installer, no dependencies
 
 ## Settings
 
