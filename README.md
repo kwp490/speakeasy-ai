@@ -6,7 +6,7 @@ Press a hotkey, speak, and your transcribed text is pasted into the active windo
 
 ## Download & Install
 
-> **[Download dictator-AI-Setup-0.3.0.exe](https://github.com/kwp490/dictat0rAI-v3/releases/latest)**
+> **[Download the latest installer](https://github.com/kwp490/dictat0rAI-v3/releases/latest)**
 >
 > Double-click the installer and follow the prompts. No Python, no command line required.
 

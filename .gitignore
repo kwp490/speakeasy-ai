@@ -50,6 +50,9 @@ installer/Output/
 # Models (user downloads)
 models/
 
+# App/runtime temp files
+temp/
+
 # Dev test environment
 dev-temp/
 
