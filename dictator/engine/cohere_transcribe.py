@@ -91,9 +91,92 @@ class CohereTranscribeEngine(SpeechEngine):
 
         log.info("Cohere Transcribe loaded on %s", device)
 
+        # Read model-config limits for chunking and token budget.
+        cfg = getattr(self._model, "config", None)
+        if cfg is not None:
+            self._max_clip_seconds = float(
+                getattr(cfg, "max_audio_clip_s", self._max_clip_seconds)
+            )
+            self._overlap_seconds = float(
+                getattr(cfg, "overlap_chunk_second", self._overlap_seconds)
+            )
+            self._decoder_max_seq = int(
+                getattr(cfg, "max_seq_len", self._decoder_max_seq)
+            )
+        log.info(
+            "Cohere limits: max_clip=%.0fs, overlap=%.0fs, decoder_max_seq=%d",
+            self._max_clip_seconds, self._overlap_seconds, self._decoder_max_seq,
+        )
+
     def _transcribe_impl(self, audio_16k: np.ndarray, language: str,
                           punctuation: bool = True,
                           timeout: float = 30.0) -> str:
+        from .audio_utils import chunk_audio, stitch_transcripts
+
+        duration_sec = len(audio_16k) / 16000
+
+        # Read model-level limits from config (set during load).
+        max_clip_s = self._max_clip_seconds
+        overlap_s = self._overlap_seconds
+
+        # Short-circuit: single-clip fast path (no chunking overhead).
+        if duration_sec <= max_clip_s:
+            max_tokens = self._token_budget(duration_sec)
+            log.info(
+                "Transcribing %.1fs audio — 1 chunk, max_new_tokens=%d, "
+                "timeout=%.0fs",
+                duration_sec, max_tokens, timeout,
+            )
+            return self._transcribe_chunk(
+                audio_16k, language, punctuation, timeout, max_tokens,
+            )
+
+        # Long audio: chunk, transcribe each, stitch.
+        chunks = chunk_audio(audio_16k, sr=16000,
+                             max_seconds=max_clip_s,
+                             overlap_seconds=overlap_s)
+        max_tokens = self._token_budget(max_clip_s)
+        log.info(
+            "Transcribing %.1fs audio — %d chunks (%.0fs each, %.1fs overlap), "
+            "max_new_tokens=%d, timeout=%.0fs",
+            duration_sec, len(chunks), max_clip_s, overlap_s,
+            max_tokens, timeout,
+        )
+
+        texts = []
+        for i, chunk in enumerate(chunks):
+            chunk_dur = len(chunk) / 16000
+            chunk_tokens = self._token_budget(chunk_dur)
+            log.info("  chunk %d/%d: %.1fs, max_new_tokens=%d",
+                     i + 1, len(chunks), chunk_dur, chunk_tokens)
+            text = self._transcribe_chunk(
+                chunk, language, punctuation, timeout, chunk_tokens,
+            )
+            texts.append(text)
+
+        result = stitch_transcripts(texts)
+        log.info("Stitched %d chunks → %d chars", len(texts), len(result))
+        return result
+
+    # ── Helpers ──────────────────────────────────────────────────────────
+
+    # Model config values — set during load(), safe defaults for tests.
+    _max_clip_seconds: float = 30.0
+    _overlap_seconds: float = 5.0
+    _decoder_max_seq: int = 1024
+
+    def _token_budget(self, clip_duration_sec: float) -> int:
+        """Compute per-chunk max_new_tokens, clamped to decoder ceiling.
+
+        Heuristic: ~20 tokens per second of speech.  Floored at 128 so
+        very short clips still have room; capped at decoder max_seq_len.
+        """
+        budget = max(128, int(clip_duration_sec * 20))
+        return min(budget, self._decoder_max_seq)
+
+    def _transcribe_chunk(self, audio_16k: np.ndarray, language: str,
+                           punctuation: bool, timeout: float,
+                           max_new_tokens: int) -> str:
         import torch
         from transformers.generation.stopping_criteria import (
             MaxTimeCriteria,
@@ -133,7 +216,7 @@ class CohereTranscribeEngine(SpeechEngine):
         with torch.no_grad():
             output_ids = self._model.generate(
                 **inputs,
-                max_new_tokens=512,
+                max_new_tokens=max_new_tokens,
                 stopping_criteria=stopping,
             )
 
