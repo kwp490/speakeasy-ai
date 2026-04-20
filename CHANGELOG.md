@@ -5,6 +5,23 @@ All notable changes to dictat0r.AI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - CPU Build Fix
+
+### Fixed
+- **CPU build variant patching**: Moved `_build_variant.py` restore in `dictator-cpu.spec` from after `Analysis()` to after `PYZ()` so the frozen CPU build correctly has `VARIANT = "cpu"`
+- **Settings dialog CUDA guard**: CPU edition now shows both device options in the dropdown but blocks CUDA selection with an inline warning and disables the OK button, preventing users from saving an invalid device setting
+
+### Added
+- **CPU build variant** (`dictator-cpu.spec`, `dictator-cpu-setup.iss`): smaller installer without CUDA/GPU dependencies
+- **Build installer script**: `Install-Dictator-Source.ps1` for automated source installs with GPU/CPU variant support
+- **Copilot instructions**: `.github/copilot-instructions.md` for AI-assisted development
+
+### Changed
+- **Build system**: RAM disk acceleration, source-hash caching, and improved build pipeline
+- **GPU monitor**: CPU variant gracefully skips GPU metrics
+
+---
+
 ## [0.3.0] - Cohere-Only Release
 
 ### Changed

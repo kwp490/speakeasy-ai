@@ -9,6 +9,9 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    strategy:
+      matrix:
+        variant: [gpu, cpu]
     steps:
       - uses: actions/checkout@v4
 
@@ -20,20 +23,24 @@ jobs:
         run: uv sync --extra dev
 
       - name: Build binary with PyInstaller
-        run: uv run pyinstaller dictator.spec
+        run: |
+          $spec = if ("${{ matrix.variant }}" -eq "cpu") { "dictator-cpu.spec" } else { "dictator.spec" }
+          uv run pyinstaller $spec
 
       - name: Verify binary exists
         run: |
-          if (!(Test-Path "dist\dictator\dictator.exe")) {
-            Write-Error "dictator.exe not found in dist\dictator\"
+          $distDir = if ("${{ matrix.variant }}" -eq "cpu") { "dist\dictator-cpu" } else { "dist\dictator" }
+          $exePath = "$distDir\dictator.exe"
+          if (!(Test-Path $exePath)) {
+            Write-Error "dictator.exe not found in $distDir"
             exit 1
           }
-          Write-Host "Binary built successfully: dist\dictator\dictator.exe"
-          (Get-Item "dist\dictator\dictator.exe").Length / 1MB | ForEach-Object { "Size: {0:N1} MB" -f $_ }
+          Write-Host "Binary built successfully: $exePath"
+          (Get-Item $exePath).Length / 1MB | ForEach-Object { "Size: {0:N1} MB" -f $_ }
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: dictator-binary
-          path: dist/dictator/
+          name: dictator-binary-${{ matrix.variant }}
+          path: dist/${{ matrix.variant == 'cpu' && 'dictator-cpu' || 'dictator' }}/
           retention-days: 7

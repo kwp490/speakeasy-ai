@@ -7,14 +7,28 @@
     Python 3.11 and uv via winget, syncs all dependencies, downloads the Cohere
     Transcribe model, and creates a desktop shortcut.
 
+    Use -Variant to select the installation type:
+      GPU  — full install with CUDA-accelerated PyTorch (requires NVIDIA GPU)
+      CPU  — lightweight install, CPU-only PyTorch (no GPU required)
+
+    If -Variant is not specified, the installer prompts interactively.
+
     Requires Administrator elevation. Installs everything to C:\Program Files\dictat0r.AI\
     (binaries, models, config, logs, temp).
+
+.PARAMETER Variant
+    Installation variant: 'GPU' (default, CUDA-enabled) or 'CPU' (no GPU required).
 
 .NOTES
     Run in an elevated PowerShell session from within the repo:
         Set-ExecutionPolicy Bypass -Scope Process -Force
         .\installer\Install-Dictator-Source.ps1
+        .\installer\Install-Dictator-Source.ps1 -Variant CPU
 #>
+param(
+    [ValidateSet('GPU', 'CPU')]
+    [string]$Variant
+)
 
 #Requires -RunAsAdministrator
 #Requires -Version 5.1
@@ -152,7 +166,28 @@ function Assert-ValidInstallLayout {
     }
 }
 
+# ── Variant selection ─────────────────────────────────────────────────────────
+if (-not $Variant) {
+    Write-Host ""
+    Write-Host "  ┌─────────────────────────────────────────────────────────────────┐" -ForegroundColor Cyan
+    Write-Host "  │  SELECT INSTALLATION VARIANT                                   │" -ForegroundColor Cyan
+    Write-Host "  │                                                                │" -ForegroundColor Cyan
+    Write-Host "  │  [1] GPU  — CUDA-accelerated (requires NVIDIA GPU, ~6 GB VRAM)│" -ForegroundColor Cyan
+    Write-Host "  │  [2] CPU  — CPU-only, no GPU required (slower inference)       │" -ForegroundColor Cyan
+    Write-Host "  └─────────────────────────────────────────────────────────────────┘" -ForegroundColor Cyan
+    Write-Host ""
+    do {
+        $choice = Read-Host "  Enter 1 for GPU or 2 for CPU (default: 1)"
+        if ([string]::IsNullOrWhiteSpace($choice)) { $choice = '1' }
+    } while ($choice -notin @('1', '2'))
+    $Variant = if ($choice -eq '2') { 'CPU' } else { 'GPU' }
+}
+Write-Host ""
+Write-Host "  Installation variant: $Variant" -ForegroundColor Cyan
+Write-Host ""
+
 # ── WIN-01: Check NVIDIA GPU ─────────────────────────────────────────────────
+if ($Variant -eq 'GPU') {
 Write-Step "Checking for NVIDIA GPU..."
 try {
     $gpu = nvidia-smi --query-gpu=name,memory.total --format=csv,noheader,nounits 2>$null
@@ -164,6 +199,7 @@ try {
 } catch {
     Write-Warn "nvidia-smi not found. GPU acceleration may not be available."
 }
+} # end GPU-only check
 
 # ── Antimalware notice ────────────────────────────────────────────────────────
 Write-Host ""
@@ -345,12 +381,28 @@ try { & $venvPython -c "import torch; print(f'torch {torch.__version__}')" 2>&1 
 finally { $ErrorActionPreference = $prevPref }
 if ($LASTEXITCODE -ne 0) {
     Write-Warn "torch import failed. The Cohere engine requires PyTorch."
-    Write-Host "  Try: cd '$InstallDir'; uv pip install --index-url https://download.pytorch.org/whl/cu128 torch" -ForegroundColor Yellow
+    if ($Variant -eq 'GPU') {
+        Write-Host "  Try: cd '$InstallDir'; uv pip install --index-url https://download.pytorch.org/whl/cu128 torch" -ForegroundColor Yellow
+    } else {
+        Write-Host "  Try: cd '$InstallDir'; uv pip install --index-url https://download.pytorch.org/whl/cpu torch" -ForegroundColor Yellow
+    }
 } else {
     Write-Ok "torch import OK"
 }
 
+# ── CPU variant: replace CUDA torch with CPU-only torch ──────────────────────
+if ($Variant -eq 'CPU') {
+    Write-Step "Installing CPU-only PyTorch (replacing CUDA build)..."
+    Push-Location $InstallDir
+    Invoke-NativeCommand 'Install CPU-only torch' {
+        uv pip install --python .venv\Scripts\python.exe --index-url https://download.pytorch.org/whl/cpu --upgrade --force-reinstall torch
+    }
+    Pop-Location
+    Write-Ok "CPU-only PyTorch installed"
+}
+
 # ── Ensure PyTorch has CUDA support ───────────────────────────────────────────
+if ($Variant -eq 'GPU') {
 Write-Step "Verifying PyTorch CUDA support..."
 $prevPref = $ErrorActionPreference
 $ErrorActionPreference = 'Continue'
@@ -394,6 +446,7 @@ if ($LASTEXITCODE -ne 0) {
 } else {
     Write-Ok "PyTorch GPU kernels verified for this GPU"
 }
+} # end GPU-only CUDA verification
 
 # ── Verify huggingface-hub ────────────────────────────────────────────────────
 Write-Step "Checking huggingface-hub version..."
@@ -409,6 +462,7 @@ if (-not $hfVer) {
 }
 
 # ── Verify CUDA DLLs ─────────────────────────────────────────────────────────
+if ($Variant -eq 'GPU') {
 Write-Step "Verifying CUDA runtime libraries..."
 try {
     $pyScript = @'
@@ -442,6 +496,7 @@ else: print('WARN: cublas DLL not found'); sys.exit(1)
 } catch {
     Write-Warn "Could not verify CUDA DLLs: $_"
 }
+} # end GPU-only CUDA DLL verification
 
 # ── Download models ──────────────────────────────────────────────────────────
 foreach ($dir in @($ModelsDir, $ConfigDir, $LogsDir, $TempDir)) {
@@ -504,11 +559,26 @@ if ((Test-Path (Join-Path $cohereDir "config.json"))) {
     Write-Ok "Cohere model downloaded to $cohereDir"
 }
 
+# ── Patch build variant for CPU source installs ──────────────────────────────
+if ($Variant -eq 'CPU') {
+    Write-Step "Patching build variant to CPU..."
+    $variantFile = Join-Path $InstallDir "dictator\_build_variant.py"
+    if (Test-Path $variantFile) {
+        $content = Get-Content $variantFile -Raw
+        $patched = $content -replace 'VARIANT\s*=\s*"gpu"', 'VARIANT = "cpu"'
+        [System.IO.File]::WriteAllText($variantFile, $patched, (New-Object System.Text.UTF8Encoding $false))
+        Write-Ok "Build variant set to 'cpu' in $variantFile"
+    } else {
+        Write-Warn "_build_variant.py not found at $variantFile — device defaults may use GPU"
+    }
+}
+
 # ── Write default engine to settings ─────────────────────────────────────────
 Write-Step "Configuring default engine..."
 $settingsFile = Join-Path $ConfigDir "settings.json"
 $cfg = $null
 $defaultEngine = 'cohere'
+$defaultDevice = if ($Variant -eq 'CPU') { 'cpu' } else { 'cuda' }
 if (Test-Path $settingsFile) {
     $rawSettings = Get-Content $settingsFile -Raw
     if (-not [string]::IsNullOrWhiteSpace($rawSettings)) {
@@ -523,9 +593,14 @@ if ($cfg.PSObject.Properties.Match('engine').Count -eq 0) {
 } else {
     $cfg.engine = $defaultEngine
 }
+if ($cfg.PSObject.Properties.Match('device').Count -eq 0) {
+    $cfg | Add-Member -NotePropertyName 'device' -NotePropertyValue $defaultDevice
+} else {
+    $cfg.device = $defaultDevice
+}
 $jsonText = $cfg | ConvertTo-Json -Depth 10
 [System.IO.File]::WriteAllText($settingsFile, $jsonText, (New-Object System.Text.UTF8Encoding $false))
-Write-Ok "Default engine set to '$defaultEngine' in $settingsFile"
+Write-Ok "Default engine set to '$defaultEngine', device set to '$defaultDevice' in $settingsFile"
 
 # ── Set permissions (current user gets Modify on install dir) ────────────────
 Write-Step "Checking directory permissions..."
@@ -579,17 +654,20 @@ try {
 }
 
 # ── Summary ───────────────────────────────────────────────────────────────────
+$variantLabel = if ($Variant -eq 'CPU') { 'CPU-only (no GPU required)' } else { 'GPU (CUDA-accelerated)' }
 Write-Host ""
 Write-Host "  ══════════════════════════════════════════════════════════" -ForegroundColor Green
 Write-Host "  dictat0r.AI has been installed successfully!" -ForegroundColor Green
 Write-Host "  ══════════════════════════════════════════════════════════" -ForegroundColor Green
 Write-Host ""
+Write-Host "  Variant:        $variantLabel"
 Write-Host "  Install dir:    $InstallDir"
 Write-Host "  Models:         $ModelsDir"
 Write-Host "  Config:         $ConfigDir"
 Write-Host "  Logs:           $LogsDir"
 Write-Host ""
 Write-Host "  Engine:         Cohere Transcribe"
+Write-Host "  Device:         $defaultDevice"
 Write-Host ""
 Write-Host "  To launch:      Double-click the desktop shortcut or run:"
 Write-Host "    cd '$InstallDir'; uv run dictator"

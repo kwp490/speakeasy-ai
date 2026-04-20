@@ -551,3 +551,166 @@ class TestDistOutputEssentials(unittest.TestCase):
                 list(self._DIST.rglob(name)),
                 f"Core '{name}' missing from dist/.",
             )
+
+
+class TestCpuSpecStripPatterns(unittest.TestCase):
+    """CPU spec must strip ALL CUDA/NVIDIA DLLs from torch/lib/.
+
+    Torch's _load_dll_libraries() globs torch/lib/*.dll and loads every
+    DLL it finds.  If any CUDA DLL survives the CPU strip pass, torch
+    will attempt to load it, fail because its CUDA dependencies are gone,
+    and crash with WinError 126.
+    """
+
+    _CPU_SPEC = _REPO_ROOT / "dictator-cpu.spec"
+
+    def _parse_cpu_strip_patterns(self) -> list[re.Pattern]:
+        spec_text = self._CPU_SPEC.read_text(encoding="utf-8")
+        raw = re.findall(r"_re\.compile\(r'([^']+)'", spec_text)
+        return [re.compile(p, re.I) for p in raw]
+
+    # Every CUDA/NVIDIA DLL shipped in a GPU torch's lib/ directory.
+    # These must ALL be caught by the CPU spec's strip patterns.
+    _CUDA_DLLS = [
+        r"torch\lib\c10_cuda.dll",
+        r"torch\lib\torch_cuda.dll",
+        r"torch\lib\caffe2_nvrtc.dll",
+        r"torch\lib\cublas64_12.dll",
+        r"torch\lib\cublasLt64_12.dll",
+        r"torch\lib\cudart64_12.dll",
+        r"torch\lib\cudnn64_9.dll",
+        r"torch\lib\cudnn_adv64_9.dll",
+        r"torch\lib\cudnn_cnn64_9.dll",
+        r"torch\lib\cudnn_engines_precompiled64_9.dll",
+        r"torch\lib\cudnn_engines_runtime_compiled64_9.dll",
+        r"torch\lib\cudnn_graph64_9.dll",
+        r"torch\lib\cudnn_heuristic64_9.dll",
+        r"torch\lib\cudnn_ops64_9.dll",
+        r"torch\lib\cufft64_11.dll",
+        r"torch\lib\cufftw64_11.dll",
+        r"torch\lib\cupti64_2025.1.1.dll",
+        r"torch\lib\curand64_10.dll",
+        r"torch\lib\cusolver64_11.dll",
+        r"torch\lib\cusolverMg64_11.dll",
+        r"torch\lib\cusparse64_12.dll",
+        r"torch\lib\nvJitLink_120_0.dll",
+        r"torch\lib\nvperf_host.dll",
+        r"torch\lib\nvToolsExt64_1.dll",
+        r"torch\lib\nvrtc-builtins64_128.dll",
+        r"torch\lib\nvrtc64_120_0.dll",
+        r"torch\lib\nvrtc64_120_0.alt.dll",
+    ]
+
+    # DLLs that must NOT be stripped — the CPU build still needs these.
+    _CPU_KEEP = [
+        r"torch\lib\torch_cpu.dll",
+        r"torch\lib\torch.dll",
+        r"torch\lib\c10.dll",
+        r"torch\lib\shm.dll",
+        r"torch\lib\fbgemm.dll",
+        r"torch\lib\asmjit.dll",
+        r"torch\lib\uv.dll",
+    ]
+
+    @unittest.skipUnless(
+        (_REPO_ROOT / "dictator-cpu.spec").is_file(),
+        "dictator-cpu.spec not present",
+    )
+    def test_all_cuda_dlls_stripped(self):
+        """Every known CUDA/NVIDIA DLL must be caught by CPU strip patterns."""
+        patterns = self._parse_cpu_strip_patterns()
+        missed = []
+        for dll in self._CUDA_DLLS:
+            if not any(p.search(dll) for p in patterns):
+                missed.append(dll)
+        self.assertEqual(
+            missed,
+            [],
+            "CPU spec strip patterns miss these CUDA DLLs (torch will try "
+            "to load them and crash with WinError 126):\n"
+            + "\n".join(f"  {d}" for d in missed),
+        )
+
+    @unittest.skipUnless(
+        (_REPO_ROOT / "dictator-cpu.spec").is_file(),
+        "dictator-cpu.spec not present",
+    )
+    def test_cpu_essential_dlls_not_stripped(self):
+        """CPU-essential torch DLLs must survive the strip pass."""
+        patterns = self._parse_cpu_strip_patterns()
+        for dll in self._CPU_KEEP:
+            for pat in patterns:
+                self.assertIsNone(
+                    pat.search(dll),
+                    f"CPU strip r'{pat.pattern}' would remove essential '{dll}'.",
+                )
+
+    # Python modules that torch.backends.__init__ imports unconditionally.
+    # These appear in a.pure as dotted module names; CUDA strip patterns
+    # must NOT be applied to a.pure or they'll be deleted.
+    _TORCH_BACKEND_MODULES = [
+        "torch.backends.cudnn",
+        "torch.backends.cudnn.rnn",
+        "torch.backends.cuda",
+        "torch.backends.mkl",
+        "torch.backends.mkldnn",
+        "torch.backends.openmp",
+    ]
+
+    @unittest.skipUnless(
+        (_REPO_ROOT / "dictator-cpu.spec").is_file(),
+        "dictator-cpu.spec not present",
+    )
+    def test_cuda_strip_patterns_not_applied_to_pure(self):
+        """CUDA binary patterns must only filter a.binaries, not a.pure.
+
+        torch.backends.__init__ unconditionally imports modules like
+        torch.backends.cudnn.  If CUDA patterns (e.g. r'cudnn') are
+        applied to a.pure, these Python stubs are stripped and the frozen
+        CPU build crashes with ImportError.
+        """
+        spec_text = self._CPU_SPEC.read_text(encoding="utf-8")
+
+        # Verify the spec uses separate pattern lists and only applies
+        # _CUDA_BINARY_PATTERNS to a.binaries, not a.pure or a.datas.
+        self.assertIn(
+            "_CUDA_BINARY_PATTERNS",
+            spec_text,
+            "CPU spec must define a separate _CUDA_BINARY_PATTERNS list "
+            "for binary-only stripping.",
+        )
+        # a.pure must NOT be filtered with _CUDA_BINARY_PATTERNS
+        for line in spec_text.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("a.pure") and "=" in stripped:
+                self.assertNotIn(
+                    "_CUDA_BINARY_PATTERNS", stripped,
+                    "a.pure must not be filtered with _CUDA_BINARY_PATTERNS — "
+                    "this would strip torch.backends.cudnn and other Python stubs.",
+                )
+            if stripped.startswith("a.datas") and "=" in stripped:
+                self.assertNotIn(
+                    "_CUDA_BINARY_PATTERNS", stripped,
+                    "a.datas must not be filtered with _CUDA_BINARY_PATTERNS.",
+                )
+
+    @unittest.skipUnless(
+        (_REPO_ROOT / "dictator-cpu.spec").is_file(),
+        "dictator-cpu.spec not present",
+    )
+    def test_general_strip_patterns_spare_torch_backend_modules(self):
+        """_STRIP_PATTERNS (applied to a.pure) must not match torch backend modules."""
+        spec_text = self._CPU_SPEC.read_text(encoding="utf-8")
+        # Parse only _STRIP_PATTERNS (before _CUDA_BINARY_PATTERNS block)
+        cuda_block = spec_text.find("_CUDA_BINARY_PATTERNS")
+        strip_section = spec_text[:cuda_block] if cuda_block != -1 else spec_text
+        raw = re.findall(r"_re\.compile\(r'([^']+)'", strip_section)
+        patterns = [re.compile(p, re.I) for p in raw]
+
+        for mod in self._TORCH_BACKEND_MODULES:
+            for pat in patterns:
+                self.assertIsNone(
+                    pat.search(mod),
+                    f"CPU _STRIP_PATTERNS r'{pat.pattern}' would strip "
+                    f"Python module '{mod}' from a.pure.",
+                )

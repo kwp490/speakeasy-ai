@@ -12,6 +12,8 @@ import os
 from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 
+from ._build_variant import VARIANT
+
 log = logging.getLogger(__name__)
 
 INSTALL_DIR = Path(os.environ.get("DICTATOR_HOME", r"C:\Program Files\dictat0r.AI"))
@@ -31,7 +33,7 @@ class Settings:
     # ── Model Engine ──────────────────────────────────────────────────────────
     engine: str = "cohere"
     model_path: str = DEFAULT_MODELS_DIR
-    device: str = "cuda"
+    device: str = "cpu" if VARIANT == "cpu" else "cuda"
     language: str = "en"
     inference_timeout: int = 30
     punctuation: bool = True
@@ -59,7 +61,7 @@ class Settings:
     # ── Helpers ───────────────────────────────────────────────────────────────
 
     _VALID_ENGINES = {"cohere"}
-    _VALID_DEVICES = {"cuda", "cpu"}
+    _VALID_DEVICES = {"cpu"} if VARIANT == "cpu" else {"cuda", "cpu"}
 
     def validate(self) -> None:
         """Clamp/correct invalid field values to safe defaults."""
@@ -69,9 +71,10 @@ class Settings:
         if self.model_path != DEFAULT_MODELS_DIR and not os.path.isdir(self.model_path):
             log.warning("model_path '%s' does not exist; resetting to default", self.model_path)
             self.model_path = DEFAULT_MODELS_DIR
+        _default_device = "cpu" if VARIANT == "cpu" else "cuda"
         if self.device not in self._VALID_DEVICES:
-            log.warning("Unknown device '%s'; falling back to 'cuda'", self.device)
-            self.device = "cuda"
+            log.warning("Unknown device '%s'; falling back to '%s'", self.device, _default_device)
+            self.device = _default_device
         if self.sample_rate < 8000 or self.sample_rate > 48000:
             log.warning("Invalid sample_rate %d; resetting to 16000", self.sample_rate)
             self.sample_rate = 16000

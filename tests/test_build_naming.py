@@ -1,9 +1,9 @@
 """Tests for build/installer naming consistency.
 
 These tests catch stale names and broken cross-file references that prevent
-Build-Installer.ps1 and Test-Dictator.ps1 from working.  They parse the
-build scripts statically (no execution) and verify that every path, GUID,
-module name, and process name agrees with the actual files on disk.
+Build-Installer.ps1 from working.  They parse the build scripts statically
+(no execution) and verify that every path, GUID, module name, and process
+name agrees with the actual files on disk.
 """
 
 import re
@@ -40,15 +40,21 @@ class TestBuildInstallerPaths(unittest.TestCase):
         cls.build_ps1 = _read("installer/Build-Installer.ps1")
 
     def test_iss_filename_matches_disk(self):
-        """The .iss path passed to iscc must point to a real file."""
-        m = re.search(r'isccArgs\s*=\s*@\("([^"]+)"\)', self.build_ps1)
-        self.assertIsNotNone(m, "Could not find isccArgs assignment in Build-Installer.ps1")
-        iss_path = m.group(1).replace("\\", "/")
-        self.assertTrue(
-            (_REPO_ROOT / iss_path).exists(),
-            f"Build-Installer.ps1 references '{iss_path}' but the file does not exist. "
-            f"Actual .iss files: {[p.name for p in (_REPO_ROOT / 'installer').glob('*.iss')]}",
-        )
+        """The .iss paths passed to Build-Variant must point to real files."""
+        # Build-Installer.ps1 references .iss files via -IssFile parameters
+        iss_refs = re.findall(r"-IssFile\s+'([^']+)'", self.build_ps1)
+        if not iss_refs:
+            # Fallback: old-style direct isccArgs assignment
+            m = re.search(r'isccArgs\s*=\s*@\("([^"]+)"\)', self.build_ps1)
+            self.assertIsNotNone(m, "Could not find .iss file reference in Build-Installer.ps1")
+            iss_refs = [m.group(1)]
+        for iss_path in iss_refs:
+            iss_path_norm = iss_path.replace("\\", "/")
+            self.assertTrue(
+                (_REPO_ROOT / iss_path_norm).exists(),
+                f"Build-Installer.ps1 references '{iss_path}' but the file does not exist. "
+                f"Actual .iss files: {[p.name for p in (_REPO_ROOT / 'installer').glob('*.iss')]}",
+            )
 
     def test_source_hash_directory_exists(self):
         """Get-SourceHash must scan the actual Python package directory."""
@@ -71,46 +77,46 @@ class TestBuildInstallerPaths(unittest.TestCase):
         )
 
 
-class TestTestDictatorReferences(unittest.TestCase):
-    """Test-Dictator.ps1 must agree with dictator-setup.iss and the package layout."""
+class TestBuildInstallerReleaseReferences(unittest.TestCase):
+    """Build-Installer.ps1 release mode must agree with dictator-setup.iss and the package layout."""
 
     @classmethod
     def setUpClass(cls):
-        cls.test_ps1 = _read("Test-Dictator.ps1")
+        cls.build_ps1_full = _read("installer/Build-Installer.ps1")
         cls.iss_text = _read("installer/dictator-setup.iss")
 
     def test_registry_guid_matches_iss(self):
-        """The uninstall GUID in Test-Dictator.ps1 must match AppId in .iss."""
+        """The uninstall GUID in Build-Installer.ps1 must match AppId in .iss."""
         iss_guid = _iss_app_id(self.iss_text)
         self.assertIsNotNone(iss_guid, "Could not parse AppId from dictator-setup.iss")
 
-        # Find all GUIDs in the Test-Dictator.ps1 uninstall key lines
+        # Find all GUIDs in the Build-Installer.ps1 uninstall key lines
         guids = re.findall(
-            r"Uninstall\\\{([0-9A-Fa-f-]+)\}_is1", self.test_ps1
+            r"Uninstall\\\{([0-9A-Fa-f-]+)\}_is1", self.build_ps1_full
         )
-        self.assertTrue(len(guids) > 0, "No uninstall GUIDs found in Test-Dictator.ps1")
+        self.assertTrue(len(guids) > 0, "No uninstall GUIDs found in Build-Installer.ps1")
         for guid in guids:
             self.assertEqual(
                 guid, iss_guid,
-                f"Test-Dictator.ps1 GUID '{guid}' does not match "
+                f"Build-Installer.ps1 GUID '{guid}' does not match "
                 f"dictator-setup.iss AppId '{iss_guid}'",
             )
 
     def test_module_name_matches_package(self):
         """The 'python -m <module>' invocation must use the real package name."""
-        m = re.search(r"python\s+-m\s+([\w.]+)", self.test_ps1)
-        self.assertIsNotNone(m, "Could not find 'python -m' in Test-Dictator.ps1")
+        m = re.search(r"python\s+-m\s+([\w.]+)", self.build_ps1_full)
+        self.assertIsNotNone(m, "Could not find 'python -m' in Build-Installer.ps1")
         module_name = m.group(1)
         self.assertTrue(
             (_REPO_ROOT / module_name.replace(".", "/")).is_dir(),
-            f"Test-Dictator.ps1 invokes 'python -m {module_name}' but "
+            f"Build-Installer.ps1 invokes 'python -m {module_name}' but "
             f"'{module_name.replace('.', '/')}/' does not exist.",
         )
 
     def test_process_name_matches_exe(self):
         """Get-Process name must match the exe name (without extension)."""
-        m = re.search(r"Get-Process\s+-Name\s+'([^']+)'", self.test_ps1)
-        self.assertIsNotNone(m, "Could not find Get-Process in Test-Dictator.ps1")
+        m = re.search(r"Get-Process\s+-Name\s+'([^']+)'", self.build_ps1_full)
+        self.assertIsNotNone(m, "Could not find Get-Process in Build-Installer.ps1")
         process_name = m.group(1)
 
         exe_name = _iss_define(self.iss_text, "MyAppExeName")
@@ -127,13 +133,18 @@ class TestTestDictatorReferences(unittest.TestCase):
         output_base = re.search(r"OutputBaseFilename=(.+)", self.iss_text)
         self.assertIsNotNone(output_base, "Could not parse OutputBaseFilename from .iss")
         # OutputBaseFilename contains {#MyAppVersion} which resolves to the version
-        # Test-Dictator.ps1 uses a wildcard like dictator-AI-Setup-*.exe
+        # Build-Installer.ps1 uses a wildcard like dictator-AI-Setup-*.exe
         iss_base = output_base.group(1).strip()
         # Replace InnoSetup preprocessor tokens with regex wildcards
         iss_pattern = re.sub(r"\{#\w+\}", ".*", iss_base)
 
-        m = re.search(r'Get-ChildItem\s+"([^"]+Setup[^"]*\.exe)"', self.test_ps1)
-        self.assertIsNotNone(m, "Could not find installer glob in Test-Dictator.ps1")
+        # Build-Installer.ps1 may use either a direct glob string or a variable
+        # expression for the installer pattern.
+        m = re.search(r'Get-ChildItem\s+"([^"]+Setup[^"]*\.exe)"', self.build_ps1_full)
+        if m is None:
+            # Variant-aware: look for the glob pattern in a variable assignment
+            m = re.search(r"'(dictator-AI-Setup-\*\.exe)'", self.build_ps1_full)
+        self.assertIsNotNone(m, "Could not find installer glob in Build-Installer.ps1")
         # Convert PowerShell glob to comparable form (replace * with .*)
         ps_pattern = m.group(1).replace("\\", "/").split("/")[-1].replace("*", ".*")
 
@@ -142,7 +153,7 @@ class TestTestDictatorReferences(unittest.TestCase):
         self.assertRegex(
             test_filename,
             ps_pattern,
-            f"Test-Dictator.ps1 glob '{m.group(1)}' would not match "
+            f"Build-Installer.ps1 glob '{m.group(1)}' would not match "
             f"Inno Setup output '{iss_base}'",
         )
 
@@ -154,7 +165,6 @@ class TestNoStaleProjectNames(unittest.TestCase):
 
     _FILES_TO_CHECK = [
         "installer/Build-Installer.ps1",
-        "Test-Dictator.ps1",
         "installer/dictator-setup.iss",
         "dictator.spec",
         "pyproject.toml",

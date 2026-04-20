@@ -1,18 +1,24 @@
 # dictat0r.AI — Native Windows Voice-to-Text
 
-**Real-time speech transcription on Windows using NVIDIA GPUs.**
+**Real-time speech transcription on Windows — GPU-accelerated or CPU-only.**
 
-Press a hotkey, speak, and your transcribed text is pasted into the active window. GPU-accelerated, runs natively — no setup complexity.
+Press a hotkey, speak, and your transcribed text is pasted into the active window. Runs natively with NVIDIA CUDA acceleration or on CPU alone — no setup complexity.
 
 ## Getting Started
 
-There are two ways to install dictat0r.AI: download the pre-built installer (recommended), or build from source.
+There are two ways to install dictat0r.AI: download the pre-built installer (recommended), or build from source. Both methods support GPU and CPU-only variants.
 
 **Requirements (both methods):** Windows 10/11 (64-bit), [HuggingFace account](https://huggingface.co/join) with access to [CohereLabs/cohere-transcribe-03-2026](https://huggingface.co/CohereLabs/cohere-transcribe-03-2026). An NVIDIA GPU (RTX 30-series or newer, 6+ GB VRAM, Driver 525+) is recommended for fast inference but not required — the app can run on CPU (slower).
 
 ### Option 1 — Installer (recommended)
 
-Download **[dictator-AI-Setup-0.3.0.exe](https://github.com/kwp490/dictat0rAI-v3/releases/download/v0.3.0/dictator-AI-Setup-0.3.0.exe)** from the [Releases](https://github.com/kwp490/dictat0rAI-v3/releases/latest) page.
+| Variant               | Download                                         | Requirements                                 |
+| --------------------- | ------------------------------------------------ | -------------------------------------------- |
+| **GPU** (recommended) | [dictator-AI-Setup-0.3.0.exe][gpu-installer]     | NVIDIA GPU (RTX 30+, 6 GB VRAM, Driver 525+) |
+| **CPU**               | [dictator-AI-CPU-Setup-0.3.0.exe][cpu-installer] | No GPU required (slower inference)           |
+
+[gpu-installer]: https://github.com/kwp490/dictat0rAI-v3/releases/download/v0.3.0/dictator-AI-Setup-0.3.0.exe
+[cpu-installer]: https://github.com/kwp490/dictat0rAI-v3/releases/download/v0.3.0/dictator-AI-CPU-Setup-0.3.0.exe
 
 Double-click the installer and follow the prompts. No Python, no command line required. The installer will:
 
@@ -22,9 +28,13 @@ Double-click the installer and follow the prompts. No Python, no command line re
 4. Create desktop and Start Menu shortcuts
 5. Configure Windows Defender exclusions
 
+> **Note:** Both variants install to the same directory and share the same App ID. Installing one replaces the other — they cannot coexist side-by-side.
+
 ### Option 2 — Run from source
 
 For developers or users who prefer to build and run from source. Requires [Git](https://git-scm.com/downloads/win) and [uv](https://docs.astral.sh/uv/) (installed in step 1 below).
+
+**GPU (default — requires NVIDIA GPU with CUDA):**
 
 ```powershell
 # 1. Install uv (Python package manager)
@@ -40,12 +50,38 @@ uv run dictator download-model --token YOUR_HF_TOKEN
 uv run dictator
 ```
 
+**CPU-only (no GPU required):**
+
+```powershell
+# Steps 1-2 are the same as above, then replace CUDA torch with CPU-only torch:
+uv pip install --index-url https://download.pytorch.org/whl/cpu --upgrade --force-reinstall torch
+
+# Download the model and launch
+uv run dictator download-model --token YOUR_HF_TOKEN
+uv run dictator
+```
+
 Or use the automated source installer (requires admin):
 
 ```powershell
 Set-ExecutionPolicy Bypass -Scope Process -Force
-.\installer\Install-Dictator-Source.ps1
+.\installer\Install-Dictator-Source.ps1              # interactive prompt
+.\installer\Install-Dictator-Source.ps1 -Variant CPU  # CPU-only, no GPU required
+.\installer\Install-Dictator-Source.ps1 -Variant GPU  # GPU with CUDA acceleration
 ```
+
+### Option 3 — Build the installer yourself
+
+To compile a distributable installer (PyInstaller + Inno Setup), use the build script. Requires [Inno Setup](https://jrsoftware.org/isinfo.php) on PATH.
+
+```powershell
+.\installer\Build-Installer.ps1                          # GPU installer (default)
+.\installer\Build-Installer.ps1 -Variant CPU              # CPU-only installer
+.\installer\Build-Installer.ps1 -Variant Both             # Build both sequentially
+.\installer\Build-Installer.ps1 -Variant Both -Fast       # Both, fast compression (dev builds)
+```
+
+Output installers are written to `installer\Output\`.
 
 ## Features
 
@@ -60,15 +96,16 @@ Set-ExecutionPolicy Bypass -Scope Process -Force
 - **Single-instance guard**: Prevents multiple dictat0r.AI processes from running simultaneously
 - **Real-time resource monitoring**: RAM, VRAM, and GPU temperature displayed in the diagnostics panel
 - **Audio feedback**: Beep tones on recording start/stop
-- **Runs natively on Windows** — single installer, no dependencies
+- **GPU and CPU variants** — GPU installer with CUDA acceleration, or lightweight CPU-only installer
+- **Runs natively on Windows** — no dependencies
 
 ## Settings
 
 | Setting              | Default                                | Description                                      |
 | -------------------- | -------------------------------------- | ------------------------------------------------ |
 | `engine`             | `cohere`                               | Speech engine (Cohere Transcribe)                |
-| `model_path`         | `C:\Program Files\dictat0r.AI\models` | Directory for model weights                      |
-| `device`             | `cuda`                                 | Inference device: `cuda` or `cpu`                |
+| `model_path`         | `C:\Program Files\dictat0r.AI\models`  | Directory for model weights                      |
+| `device`             | `cuda` (GPU) / `cpu` (CPU)             | Inference device — GPU builds default to `cuda` and allow `cpu` fallback; CPU builds are locked to `cpu` |
 | `language`           | `en`                                   | Language code                                    |
 | `punctuation`        | `true`                                 | Enable automatic punctuation in transcription    |
 | `inference_timeout`  | `30`                                   | Max seconds per transcription                    |
@@ -118,13 +155,13 @@ Each option is configured per preset — you can have different cleanup rules fo
 
 Five built-in presets are included:
 
-| Preset | Description |
-|---|---|
-| **General Professional** | Neutral business tone, clear and concise |
-| **Technical / Engineering** | Preserves jargon, acronyms, and technical terminology |
-| **Casual / Friendly** | Warm, approachable, conversational tone |
-| **Email / Correspondence** | Professional email with greeting/sign-off, short paragraphs |
-| **Simplified (8th Grade)** | Short sentences, common words, simple structures |
+| Preset                      | Description                                                   |
+| --------------------------- | ------------------------------------------------------------- |
+| **General Professional**    | Neutral business tone, clear and concise                      |
+| **Technical / Engineering** | Preserves jargon, acronyms, and technical terminology         |
+| **Casual / Friendly**       | Warm, approachable, conversational tone                       |
+| **Email / Correspondence**  | Professional email with greeting/sign-off, short paragraphs  |
+| **Simplified (8th Grade)**  | Short sentences, common words, simple structures              |
 
 You can also create, duplicate, and delete custom presets. Each preset has its own toggle settings, custom system prompt, vocabulary list, and optional model override.
 

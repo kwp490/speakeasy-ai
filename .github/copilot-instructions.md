@@ -1,0 +1,117 @@
+# Copilot Instructions — dictat0r.AI
+
+## Project overview
+
+Windows-only desktop speech-to-text application. Python 3.11+, PySide6 (Qt6),
+HuggingFace Transformers (Cohere ASR engine), PyInstaller frozen builds, Inno
+Setup installer. Two build variants: GPU (CUDA via torch+cu128) and CPU.
+
+Package manager: **uv** (not pip). All commands use `uv run` / `uv sync`.
+
+## Directory map
+
+```
+dictator/               # Application source package
+  __main__.py           # Entry point, single-instance mutex, CLI (download-model, --version)
+  main_window.py        # PySide6 QMainWindow — UI, engine lifecycle, audio, clipboard, hotkeys
+  config.py             # Settings dataclass, JSON persistence, path constants (INSTALL_DIR)
+  audio.py              # Mic recording (sounddevice), WAV capture
+  clipboard.py          # Win32 clipboard read/write (main-thread only)
+  hotkeys.py            # Global hotkey registration (keyboard lib), sleep/wake re-register
+  workers.py            # Worker/QRunnable + DedicatedWorkerPool (Python-thread facade)
+  text_processor.py     # Professional Mode — OpenAI API text cleanup
+  pro_preset.py         # ProPreset dataclass, built-in + user JSON presets
+  settings_dialog.py    # Settings UI dialog
+  pro_settings_dialog.py# Professional Mode settings UI
+  gpu_monitor.py        # nvidia-ml-py VRAM/utilization polling
+  _resource_monitor.py  # System resource monitoring
+  _constants.py         # UI colors, timer intervals, Win32 message IDs
+  _build_variant.py     # GPU vs CPU variant flag for frozen builds
+  model_downloader.py   # HuggingFace Hub model download logic
+  engine/
+    __init__.py         # Engine registry (ENGINES dict, availability check)
+    base.py             # ABC SpeechEngine — load/transcribe/unload interface
+    cohere_transcribe.py# CohereTranscribeEngine implementation
+    audio_utils.py      # Resampling (ensure_16khz), audio preprocessing
+installer/
+  Build-Installer.ps1   # Build/install/source-run tool (modes: Build, Release, Source, Install)
+  Install-Dictator-Source.ps1 # Automated source install (admin); supports -Variant GPU|CPU
+  cohere-model-setup.ps1# HF model download helper invoked by Inno Setup post-install
+  dictator-setup.iss    # Inno Setup script (GPU)
+  dictator-cpu-setup.iss# Inno Setup script (CPU)
+tests/                  # pytest suite
+dev-temp/               # Ephemeral local dev data (gitignored)
+```
+
+## Build & test commands
+
+```powershell
+uv sync --extra dev                                      # Install all deps
+uv run pytest tests/ -v                                  # Run test suite
+uv run python -m dictator                                # Run from source (needs DICTATOR_HOME)
+.\installer\Build-Installer.ps1 -Mode Source             # Run from source (sets up dev-temp)
+.\installer\Build-Installer.ps1 -Mode Source -Clean      # Reset dev-temp, run from source
+.\installer\Build-Installer.ps1 -Mode Build              # PyInstaller + Inno Setup (GPU)
+.\installer\Build-Installer.ps1 -Mode Build -Variant CPU # CPU variant
+.\installer\Build-Installer.ps1 -Mode Build -Fast        # Dev build (fast compression)
+.\installer\Build-Installer.ps1 -Mode Release            # Full release cycle (requires admin)
+.\installer\Build-Installer.ps1 -Mode Install            # Silent-install latest build (requires admin)
+```
+
+## Architecture rules
+
+### Threading
+- **Clipboard writes** (`set_clipboard_text`) must only happen on the **main Qt thread**. Workers emit signals; connected slots run on the main thread.
+- **Engine load/transcribe/unload** must run on **Python-managed threads** (DedicatedWorkerPool), NOT QThreadPool. QThreadPool causes hangs with Cohere on Windows.
+- Generic background tasks use `Worker(QRunnable)` via `QThreadPool`.
+
+### Audio pipeline
+- All engines receive **1D float32 mono numpy arrays** resampled to **16 kHz**.
+- Recording sample rate may differ; `ensure_16khz()` handles conversion.
+
+### Engine pattern
+- Single engine registry in `engine/__init__.py` — currently only `"cohere"`.
+- Availability gated on both importability AND model files on disk (`config.json` present).
+- `unload()` must: `del` model → `gc.collect()` → `torch.cuda.empty_cache()`.
+
+### Cohere engine gotchas
+- **Cast processor outputs to model dtype** before `generate()` — otherwise conv2d fails (float32 vs float16).
+- Processor `decode()` may return a one-item list; normalize to first item.
+- Use Python threads, never QThreadPool.
+
+### Security
+- **OpenAI API key** is stored in Windows **keyring** (not settings.json). Never log, print, or serialize `_api_key` to disk.
+- Use `_sanitize_error()` from `text_processor.py` when surfacing API errors.
+
+### Config
+- `INSTALL_DIR` = `DICTATOR_HOME` env var (default: `C:\Program Files\dictat0r.AI`).
+- Source mode uses `dev-temp/` via `DICTATOR_HOME=dev-temp`.
+- Settings file: `config/settings.json`. User presets: `config/presets/*.json`.
+- Five built-in presets are always available and cannot be deleted.
+
+### Sleep/wake
+- `HotkeyManager.re_register()` is called on `WM_POWERBROADCAST` / `PBT_APMRESUMEAUTOMATIC` to restore keyboard hooks.
+
+### Single-instance
+- Win32 named mutex `Global\Dictator0rAIMutex` prevents duplicate processes.
+
+### Build variants
+- **GPU**: `dictator.spec` + `dictator-setup.iss` (CUDA, includes torchaudio)
+- **CPU**: `dictator-cpu.spec` + `dictator-cpu-setup.iss` (no CUDA, smaller)
+- `_build_variant.py` contains `VARIANT = "gpu"` by default. The CPU spec patches it to `"cpu"` at build time (and restores it after). `Install-Dictator-Source.ps1 -Variant CPU` also patches it for source installs.
+- At runtime, `config.py`, `gpu_monitor.py`, and `settings_dialog.py` branch on `VARIANT` to set device defaults, skip GPU metrics, and restrict the device dropdown.
+- Both installer variants share the same Inno Setup `AppId` — installing one replaces the other.
+- torch and torchaudio versions **must match** (same CUDA/CPU index in pyproject.toml)
+- CPU spec uses **two** strip-pattern lists: `_STRIP_PATTERNS` (applied to `a.pure`, `a.binaries`, `a.datas`) and `_CUDA_BINARY_PATTERNS` (applied **only** to `a.binaries`). CUDA patterns like `cudnn` match Python module names (e.g. `torch.backends.cudnn`) — applying them to `a.pure` breaks the frozen build.
+
+## Test conventions
+
+- Tests mock Qt and GPU dependencies; no GPU or display required.
+- `test_frozen_compat.py` validates the PyInstaller `dist/` bundle structure.
+- Run with `uv run pytest tests/ -v`.
+
+## Code style
+
+- Type hints where practical.
+- Import order: stdlib → third-party → local.
+- Follow existing patterns — don't over-engineer or add abstractions for one-off operations.

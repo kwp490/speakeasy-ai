@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
 )
 
 from .audio import AudioRecorder
+from ._build_variant import VARIANT
 from .config import Settings
 
 log = logging.getLogger(__name__)
@@ -88,6 +89,17 @@ class SettingsDialog(QDialog):
         self._device_combo = QComboBox()
         self._device_combo.addItems(["cuda", "cpu"])
         engine_form.addRow("Device:", self._device_combo)
+
+        self._device_warning = QLabel(
+            "\u26a0 CUDA is not available in the CPU edition."
+            " Download and install the GPU version to use CUDA."
+        )
+        self._device_warning.setWordWrap(True)
+        self._device_warning.setStyleSheet("color: #e74c3c; font-weight: bold;")
+        self._device_warning.setVisible(False)
+        engine_form.addRow(self._device_warning)
+
+        self._device_combo.currentTextChanged.connect(self._on_device_changed)
 
         self._language_combo = QComboBox()
         for code, label in COHERE_LANGUAGES:
@@ -170,6 +182,7 @@ class SettingsDialog(QDialog):
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
+        self._ok_button = buttons.button(QDialogButtonBox.StandardButton.Ok)
         buttons.accepted.connect(self._save_and_accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
@@ -203,6 +216,8 @@ class SettingsDialog(QDialog):
         if idx >= 0:
             self._mic_combo.setCurrentIndex(idx)
 
+        self._on_device_changed(self._device_combo.currentText())
+
     def _save_and_accept(self) -> None:
         s = self.settings
         s.model_path = self._model_path.text().strip()
@@ -225,6 +240,11 @@ class SettingsDialog(QDialog):
         s.save()
         log.info("Settings saved")
         self.accept()
+
+    def _on_device_changed(self, device: str) -> None:
+        cuda_blocked = VARIANT == "cpu" and device == "cuda"
+        self._device_warning.setVisible(cuda_blocked)
+        self._ok_button.setEnabled(not cuda_blocked)
 
     # ── Helpers ──────────────────────────────────────────────────────────────
 

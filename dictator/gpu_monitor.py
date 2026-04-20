@@ -8,6 +8,8 @@ import logging
 from dataclasses import dataclass, field
 from typing import Optional
 
+from ._build_variant import VARIANT
+
 log = logging.getLogger(__name__)
 
 
@@ -78,6 +80,9 @@ def _get_gpu_metrics() -> GpuMetrics:
     nvmlInit/nvmlShutdown cycles grab the NVIDIA driver lock and can
     deadlock against concurrent CUDA kernel launches.
     """
+    if VARIANT == "cpu":
+        return GpuMetrics()
+
     global _nvml_handle, _nvml_name
     try:
         import pynvml

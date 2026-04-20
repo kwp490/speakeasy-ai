@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "dictator"
-version = "0.3.0"
+version = "0.3.1"
 description = "dictat0r.AI — Native Windows voice-to-text with GPU acceleration — Cohere Transcribe engine"
 readme = "README.md"
 license = "MIT"
@@ -49,6 +49,11 @@ required-environments = ["sys_platform == 'win32' and platform_machine == 'AMD64
 [[tool.uv.index]]
 name = "pytorch-cu128"
 url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
 explicit = true
 
 [tool.uv.sources]

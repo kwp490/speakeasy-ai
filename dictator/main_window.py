@@ -58,6 +58,7 @@ from ._constants import (
     WM_POWERBROADCAST,
 )
 from .config import DEFAULT_LOG_DIR, DEFAULT_PRESETS_DIR, Settings
+from ._build_variant import VARIANT
 from .engine import ENGINES
 from .engine.cohere_transcribe import CohereTranscribeEngine
 from .hotkeys import HotkeyManager
@@ -646,7 +647,7 @@ class MainWindow(QMainWindow):
             self._lbl_ram.setText("RAM: —")
 
         gpu = metrics.gpu
-        if gpu.vram_total_gb > 0:
+        if VARIANT != "cpu" and gpu.vram_total_gb > 0:
             pct = gpu.vram_percent
             if pct > 90:
                 color = COLOR_ERROR

@@ -8,8 +8,11 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  build:
     runs-on: windows-latest
+    strategy:
+      matrix:
+        variant: [gpu, cpu]
     steps:
       - uses: actions/checkout@v4
 
@@ -21,7 +24,9 @@ jobs:
         run: uv sync --extra dev
 
       - name: Build binary with PyInstaller
-        run: uv run pyinstaller dictator.spec
+        run: |
+          $spec = if ("${{ matrix.variant }}" -eq "cpu") { "dictator-cpu.spec" } else { "dictator.spec" }
+          uv run pyinstaller $spec
 
       - name: Install Inno Setup
         run: choco install innosetup -y --no-progress
@@ -29,19 +34,50 @@ jobs:
       - name: Build GUI installer
         run: |
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
-          & $iscc installer\dictator-setup.iss
+          $iss = if ("${{ matrix.variant }}" -eq "cpu") { "installer\dictator-cpu-setup.iss" } else { "installer\dictator-setup.iss" }
+          & $iscc $iss
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-${{ matrix.variant }}
+          path: installer/Output/*.exe
+          retention-days: 1
+
+  release:
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download GPU installer
+        uses: actions/download-artifact@v4
+        with:
+          name: installer-gpu
+          path: installer/Output/
+
+      - name: Download CPU installer
+        uses: actions/download-artifact@v4
+        with:
+          name: installer-cpu
+          path: installer/Output/
 
       - name: Generate checksums
         run: |
-          $installer = Get-ChildItem "installer\Output\dictator-AI-Setup-*.exe" | Select-Object -First 1
-          $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash
-          "$hash  $($installer.Name)" | Out-File -FilePath "installer\Output\SHA256SUMS.txt" -Encoding utf8
+          $installers = Get-ChildItem "installer\Output\*.exe"
+          $lines = @()
+          foreach ($installer in $installers) {
+            $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash
+            $lines += "$hash  $($installer.Name)"
+          }
+          $lines | Out-File -FilePath "installer\Output\SHA256SUMS.txt" -Encoding utf8
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             installer/Output/dictator-AI-Setup-*.exe
+            installer/Output/dictator-AI-CPU-Setup-*.exe
             installer/Output/SHA256SUMS.txt
           body_path: installer/Output/release-notes.md
           draft: false
