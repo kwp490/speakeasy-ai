@@ -67,6 +67,12 @@ Or run the combined build script:
 .\installer\Build-Installer.ps1
 ```
 
+### Build Performance (Optional)
+
+Install [AIM Toolkit](https://sourceforge.net/projects/aim-toolkit/) to enable automatic RAM disk acceleration. The build script will auto-provision a 10 GB NTFS RAM disk on `R:` via `aim_ll.exe` and redirect `build/` and `dist/` there using NTFS junctions. This cuts PyInstaller I/O latency dramatically on large builds.
+
+AIM Toolkit supersedes ImDisk Toolkit, which has compatibility issues on recent Windows versions. If you already have a RAM disk mounted as `R:` (from any tool), the build script will detect and use it automatically.
+
 ## Creating a Release
 
 The README download link targets GitHub's latest published release. To publish a new installer release:

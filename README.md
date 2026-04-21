@@ -83,6 +83,8 @@ To compile a distributable installer (PyInstaller + Inno Setup), use the build s
 
 Output installers are written to `installer\Output\`.
 
+> **Optional performance boost:** Install [AIM Toolkit](https://sourceforge.net/projects/aim-toolkit/) to enable automatic RAM disk acceleration during builds. If a RAM disk is mounted as `R:`, the build script redirects intermediate files there, significantly reducing I/O time. AIM Toolkit supersedes ImDisk Toolkit for recent Windows versions.
+
 ## Features
 
 - **Cohere Transcribe 03-2026**: High-accuracy 2B-parameter ASR model, 14 languages, ~5 GB VRAM

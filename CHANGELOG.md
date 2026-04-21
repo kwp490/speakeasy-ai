@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Copilot instructions**: `.github/copilot-instructions.md` for AI-assisted development
 
 ### Changed
-- **Build system**: RAM disk acceleration, source-hash caching, and improved build pipeline
+- **Build system**: RAM disk acceleration (via [AIM Toolkit](https://sourceforge.net/projects/aim-toolkit/)), source-hash caching, and improved build pipeline
 - **GPU monitor**: CPU variant gracefully skips GPU metrics
 
 ---

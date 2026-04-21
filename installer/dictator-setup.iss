@@ -198,7 +198,7 @@ end;
 procedure CreateTokenPage;
 var
   Lbl: TNewStaticText;
-  TopPos: Integer;
+  TopPos, TokenTop: Integer;
 begin
   TokenPage := CreateCustomPage(wpSelectDir,
     'HuggingFace Authentication',
@@ -207,6 +207,7 @@ begin
   DetectedGPU := DetectGPU;
   TopPos := 0;
 
+  { -- GPU info (always visible) -- }
   Lbl := TNewStaticText.Create(TokenPage);
   Lbl.Parent := TokenPage.Surface;
   Lbl.Left := 0;  Lbl.Top := TopPos;
@@ -255,31 +256,35 @@ begin
 
   TopPos := TopPos + ScaleY(12);
 
-  Lbl := TNewStaticText.Create(TokenPage);
-  Lbl.Parent := TokenPage.Surface;
-  Lbl.Left := 0;  Lbl.Top := TopPos;
-  Lbl.Width := TokenPage.SurfaceWidth;
-  Lbl.Caption := 'HuggingFace Access Token';
-  Lbl.Font.Style := [fsBold];  Lbl.Font.Size := 9;
+  { Remember where the swappable section starts }
+  TokenTop := TopPos;
+
+  { -- Token section (hidden when model exists) -- }
+  TokenLblHeader := TNewStaticText.Create(TokenPage);
+  TokenLblHeader.Parent := TokenPage.Surface;
+  TokenLblHeader.Left := 0;  TokenLblHeader.Top := TopPos;
+  TokenLblHeader.Width := TokenPage.SurfaceWidth;
+  TokenLblHeader.Caption := 'HuggingFace Access Token';
+  TokenLblHeader.Font.Style := [fsBold];  TokenLblHeader.Font.Size := 9;
   TopPos := TopPos + ScaleY(22);
 
-  Lbl := TNewStaticText.Create(TokenPage);
-  Lbl.Parent := TokenPage.Surface;
-  Lbl.Left := ScaleX(8);  Lbl.Top := TopPos;
-  Lbl.Width := TokenPage.SurfaceWidth - ScaleX(8);
-  Lbl.AutoSize := False;  Lbl.WordWrap := True;  Lbl.Height := ScaleY(56);
-  Lbl.Caption := 'To download the model you need a free HuggingFace account:' + #13#10 +
+  TokenLblSteps := TNewStaticText.Create(TokenPage);
+  TokenLblSteps.Parent := TokenPage.Surface;
+  TokenLblSteps.Left := ScaleX(8);  TokenLblSteps.Top := TopPos;
+  TokenLblSteps.Width := TokenPage.SurfaceWidth - ScaleX(8);
+  TokenLblSteps.AutoSize := False;  TokenLblSteps.WordWrap := True;  TokenLblSteps.Height := ScaleY(56);
+  TokenLblSteps.Caption := 'To download the model you need a free HuggingFace account:' + #13#10 +
                  '  1. Sign up at https://huggingface.co/join' + #13#10 +
                  '  2. Accept the license at https://huggingface.co/CohereLabs/cohere-transcribe-03-2026' + #13#10 +
                  '  3. Create a Read token at https://huggingface.co/settings/tokens';
-  Lbl.Font.Color := $808080;
+  TokenLblSteps.Font.Color := $808080;
   TopPos := TopPos + ScaleY(60);
 
-  Lbl := TNewStaticText.Create(TokenPage);
-  Lbl.Parent := TokenPage.Surface;
-  Lbl.Left := ScaleX(8);  Lbl.Top := TopPos;
-  Lbl.Width := TokenPage.SurfaceWidth - ScaleX(8);
-  Lbl.Caption := 'Paste your HuggingFace token below (starts with hf_):';
+  TokenLblPaste := TNewStaticText.Create(TokenPage);
+  TokenLblPaste.Parent := TokenPage.Surface;
+  TokenLblPaste.Left := ScaleX(8);  TokenLblPaste.Top := TopPos;
+  TokenLblPaste.Width := TokenPage.SurfaceWidth - ScaleX(8);
+  TokenLblPaste.Caption := 'Paste your HuggingFace token below (starts with hf_):';
   TopPos := TopPos + ScaleY(18);
 
   TokenEdit := TNewEdit.Create(TokenPage);
@@ -290,13 +295,37 @@ begin
   TokenEdit.Text := '';
   TopPos := TopPos + ScaleY(28);
 
-  Lbl := TNewStaticText.Create(TokenPage);
-  Lbl.Parent := TokenPage.Surface;
-  Lbl.Left := ScaleX(8);  Lbl.Top := TopPos;
-  Lbl.Width := TokenPage.SurfaceWidth - ScaleX(8);
-  Lbl.AutoSize := False;  Lbl.WordWrap := True;  Lbl.Height := ScaleY(28);
-  Lbl.Caption := 'Your token is used only during setup to download the model. It is not stored.';
-  Lbl.Font.Color := $808080;
+  TokenLblDisclaimer := TNewStaticText.Create(TokenPage);
+  TokenLblDisclaimer.Parent := TokenPage.Surface;
+  TokenLblDisclaimer.Left := ScaleX(8);  TokenLblDisclaimer.Top := TopPos;
+  TokenLblDisclaimer.Width := TokenPage.SurfaceWidth - ScaleX(8);
+  TokenLblDisclaimer.AutoSize := False;  TokenLblDisclaimer.WordWrap := True;  TokenLblDisclaimer.Height := ScaleY(28);
+  TokenLblDisclaimer.Caption := 'Your token is used only during setup to download the model. It is not stored.';
+  TokenLblDisclaimer.Font.Color := $808080;
+
+  { -- Model-found section (hidden when model does not exist) -- }
+  TopPos := TokenTop;
+
+  ModelFoundHeader := TNewStaticText.Create(TokenPage);
+  ModelFoundHeader.Parent := TokenPage.Surface;
+  ModelFoundHeader.Left := 0;  ModelFoundHeader.Top := TopPos;
+  ModelFoundHeader.Width := TokenPage.SurfaceWidth;
+  ModelFoundHeader.Caption := #$2713 + '  Cohere Transcribe model already installed';
+  ModelFoundHeader.Font.Style := [fsBold];  ModelFoundHeader.Font.Size := 10;
+  ModelFoundHeader.Font.Color := clGreen;
+  ModelFoundHeader.Visible := False;
+  TopPos := TopPos + ScaleY(28);
+
+  ModelFoundNote := TNewStaticText.Create(TokenPage);
+  ModelFoundNote.Parent := TokenPage.Surface;
+  ModelFoundNote.Left := ScaleX(8);  ModelFoundNote.Top := TopPos;
+  ModelFoundNote.Width := TokenPage.SurfaceWidth - ScaleX(16);
+  ModelFoundNote.AutoSize := False;  ModelFoundNote.WordWrap := True;  ModelFoundNote.Height := ScaleY(72);
+  ModelFoundNote.Caption := 'The Cohere Transcribe model was found in your existing installation.' + #13#10 + #13#10 +
+                 'The model will be preserved during this upgrade — no download is needed.' + #13#10 +
+                 'Click Next to continue.';
+  ModelFoundNote.Font.Color := $808080;
+  ModelFoundNote.Visible := False;
 end;
 
 function UpdateReadyMemo(Space, NewLine, MemoUserInfoInfo, MemoDirInfo,

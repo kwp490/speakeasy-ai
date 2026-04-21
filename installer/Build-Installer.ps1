@@ -211,21 +211,25 @@ $RamDiskDrive = 'R:'
 # tests) see the same repo-relative paths.
 function Initialize-RamDiskJunctions {
     if (-not (Test-Path $RamDiskDrive)) {
-        # RAM disk not mounted -- try to auto-provision with ImDisk
-        $imdisk = Get-Command imdisk -ErrorAction SilentlyContinue
-        if (-not $imdisk) {
-            Write-Warn "RAM disk $RamDiskDrive not found and ImDisk is not installed."
-            Write-Info "Install ImDisk Toolkit: https://sourceforge.net/projects/imdisk-toolkit/"
-            Write-Info "Or: winget install OliverSchneider.ImDiskToolkit"
+        # RAM disk not mounted -- try to auto-provision with AIM Toolkit (aim_ll)
+        $aimLl = if (Test-Path "$env:ProgramFiles\AIM Toolkit\aim_ll.exe") {
+            "$env:ProgramFiles\AIM Toolkit\aim_ll.exe"
+        } else {
+            (Get-Command aim_ll -ErrorAction SilentlyContinue).Source
+        }
+        if (-not $aimLl) {
+            Write-Warn "RAM disk $RamDiskDrive is not available."
+            Write-Info "Install AIM Toolkit: https://sourceforge.net/projects/aim-toolkit/"
+            Write-Info "Or mount any writable RAM disk as $RamDiskDrive."
+            Write-Info "(AIM Toolkit supersedes ImDisk Toolkit for recent Windows versions.)"
             return
         }
 
-        $driveLetter = $RamDiskDrive.TrimEnd(':')
-        Write-Info "Provisioning 10 GB RAM disk on ${RamDiskDrive}..."
+        Write-Info "Provisioning 10 GB RAM disk on ${RamDiskDrive} via AIM Toolkit..."
         $prevPref = $ErrorActionPreference
         $ErrorActionPreference = 'Continue'
         try {
-            imdisk -a -s 10G -m "$driveLetter" -p "/fs:ntfs /q /y" 2>&1 |
+            & $aimLl -a -t vm -s 10G -m $RamDiskDrive -p "/fs:ntfs /q /y" 2>&1 |
                 ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
         } finally {
             $ErrorActionPreference = $prevPref
@@ -237,7 +241,20 @@ function Initialize-RamDiskJunctions {
         }
         Write-Ok "RAM disk provisioned on $RamDiskDrive (10 GB, NTFS)"
     } else {
-        Write-Ok "RAM disk $RamDiskDrive already mounted"
+        # Verify the existing drive is writable
+        $testFile = Join-Path $RamDiskDrive '.dictator-write-test'
+        try {
+            [IO.File]::WriteAllText($testFile, 'ok')
+            Remove-Item $testFile -Force -ErrorAction SilentlyContinue
+        } catch {
+            Write-Warn "RAM disk $RamDiskDrive exists but is not writable. Using local build/dist directories."
+            return
+        }
+        $freeGB = [math]::Round((Get-PSDrive ($RamDiskDrive.TrimEnd(':'))).Free / 1GB, 1)
+        if ($freeGB -lt 5) {
+            Write-Warn "RAM disk $RamDiskDrive has only ${freeGB} GB free (recommend >= 5 GB)"
+        }
+        Write-Ok "RAM disk $RamDiskDrive already mounted (${freeGB} GB free)"
     }
 
     foreach ($pair in @(
@@ -430,8 +447,8 @@ sys.exit(0 if ok else 1)
 
 # ── RAM disk junctions (Build and Release modes) ─────────────────────────────
 # Always use the RAM disk for builds.  If the drive is not mounted, attempt to
-# provision one via ImDisk.  The junction helper falls back gracefully to local
-# build/dist directories if the drive cannot be created.
+# provision one via AIM Toolkit (aim_ll).  The junction helper falls back
+# gracefully to local build/dist directories if the drive cannot be created.
 if ($Mode -in @('Build', 'Release')) {
     Write-Step "Setting up RAM disk junctions..."
     Initialize-RamDiskJunctions
