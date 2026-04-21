@@ -17,7 +17,7 @@
 ; ─────────────────────────────────────────────────────────────────────────────
 
 #define MyAppName "dictat0r.AI"
-#define MyAppVersion "0.3.1"
+#define MyAppVersion "0.3.2"
 #define MyAppPublisher "kwp490"
 #define MyAppURL "https://github.com/kwp490/dictat0rAI-v3"
 #define MyAppExeName "dictator.exe"
@@ -50,6 +50,8 @@ ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayName={#MyAppName}
 MinVersion=10.0
 SetupLogging=yes
+SetupIconFile=..\dictator\assets\app.ico
+UninstallDisplayIcon={app}\{#MyAppExeName}
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -66,9 +68,9 @@ Name: "{app}\temp";    Permissions: users-modify
 
 [Icons]
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; \
-    WorkingDir: "{app}"; Comment: "dictat0r.AI — Voice to Text"
+    WorkingDir: "{app}"; IconFilename: "{app}\{#MyAppExeName}"; Comment: "dictat0r.AI — Voice to Text"
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; \
-    WorkingDir: "{app}"; Comment: "dictat0r.AI — Voice to Text"
+    WorkingDir: "{app}"; IconFilename: "{app}\{#MyAppExeName}"; Comment: "dictat0r.AI — Voice to Text"
 Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 
 [Run]
@@ -93,6 +95,12 @@ Filename: "powershell.exe"; \
 var
   TokenPage: TWizardPage;
   TokenEdit: TNewEdit;
+  TokenLblHeader: TNewStaticText;
+  TokenLblSteps: TNewStaticText;
+  TokenLblPaste: TNewStaticText;
+  TokenLblDisclaimer: TNewStaticText;
+  ModelFoundHeader: TNewStaticText;
+  ModelFoundNote: TNewStaticText;
   GpuInfoLabel: TNewStaticText;
   DownloadPage: TOutputProgressWizardPage;
   SummaryPage: TWizardPage;
@@ -306,7 +314,10 @@ begin
   Info := Info + Space + 'Cohere Transcribe 03-2026  (~5 GB VRAM, 14 languages)' + NewLine + NewLine;
   Info := Info + 'The installer will:' + NewLine;
   Info := Info + Space + '1. Extract dictat0r.AI application files' + NewLine;
-  Info := Info + Space + '2. Download Cohere Transcribe model from HuggingFace' + NewLine;
+  if ModelExists then
+    Info := Info + Space + '2. Cohere Transcribe model \u2014 already installed (skip download)' + NewLine
+  else
+    Info := Info + Space + '2. Download Cohere Transcribe model from HuggingFace' + NewLine;
   Info := Info + Space + '3. Create desktop and Start Menu shortcuts' + NewLine;
   Info := Info + Space + '4. Configure Windows Defender exclusions' + NewLine + NewLine;
   if DetectedGPU <> '' then
@@ -489,8 +500,21 @@ end;
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
   Result := False;
-  if (PageID = TokenPage.ID) and ModelExists then
-    Result := True;
+end;
+
+procedure CurPageChanged(CurPageID: Integer);
+begin
+  if CurPageID = TokenPage.ID then
+  begin
+    { Toggle between token-entry and model-found UI }
+    TokenLblHeader.Visible     := not ModelExists;
+    TokenLblSteps.Visible      := not ModelExists;
+    TokenLblPaste.Visible      := not ModelExists;
+    TokenEdit.Visible          := not ModelExists;
+    TokenLblDisclaimer.Visible := not ModelExists;
+    ModelFoundHeader.Visible   := ModelExists;
+    ModelFoundNote.Visible     := ModelExists;
+  end;
 end;
 
 procedure InitializeWizard;

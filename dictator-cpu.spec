@@ -222,6 +222,7 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=True,
     upx=False,
+    icon='dictator/assets/app.ico',
     console=False,
     disable_windowed_traceback=False,
 )

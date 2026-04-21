@@ -253,12 +253,21 @@ def main() -> int:
     _setup_logging()
 
     from PySide6.QtWidgets import QApplication
+    from PySide6.QtGui import QIcon
     from dictator.config import Settings
     from dictator.main_window import MainWindow
 
     app = QApplication(sys.argv)
     app.setApplicationName("dictat0r.AI")
     app.setOrganizationName("dictat0r.AI")
+
+    # Set application icon (taskbar + window title bar)
+    _icon_path = os.path.join(
+        getattr(sys, '_MEIPASS', os.path.dirname(__file__)),
+        'assets', 'app.ico',
+    )
+    if os.path.isfile(_icon_path):
+        app.setWindowIcon(QIcon(_icon_path))
 
     settings = Settings.load()
 
