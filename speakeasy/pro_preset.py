@@ -284,7 +284,6 @@ _BUILTIN_PRESETS: list[ProPreset] = [
             "Add a sense of wisdom or philosophical framing when it fits naturally. "
             "Do not turn every sentence into nonsense. The text must remain understandable. "
             "Avoid slang, profanity, and modern filler. "
-            "Do not mention any copyrighted character names or franchises. "
             "Do not explain the transformation. Output only the transformed text."
         ),
         fix_tone=True,

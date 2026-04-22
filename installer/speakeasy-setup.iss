@@ -6,7 +6,7 @@
 ;   - HuggingFace token prompt + Cohere Transcribe model download
 ;   - Desktop + Start Menu shortcuts
 ;   - Data migration from previous installs
-;   - Windows Defender exclusions
+;   - Windows Defender process exclusion (exe only — not the whole directory)
 ;   - Silent / unattended mode
 ;
 ; Build:
@@ -64,10 +64,11 @@ Source: "..\dist\speakeasy\*"; DestDir: "{app}"; Flags: ignoreversion recursesub
 Source: "cohere-model-setup.ps1"; DestDir: "{app}"; Flags: ignoreversion
 
 [Dirs]
-Name: "{app}\models";  Permissions: users-modify
-Name: "{app}\config";  Permissions: users-modify
-Name: "{app}\logs";    Permissions: users-modify
-Name: "{app}\temp";    Permissions: users-modify
+Name: "{commonappdata}\SpeakEasy AI"
+Name: "{commonappdata}\SpeakEasy AI\models"
+Name: "{commonappdata}\SpeakEasy AI\config"
+Name: "{commonappdata}\SpeakEasy AI\logs"
+Name: "{commonappdata}\SpeakEasy AI\temp"
 
 [Icons]
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; \
@@ -78,20 +79,20 @@ Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 
 [Run]
 Filename: "powershell.exe"; \
-    Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Add-MpPreference -ExclusionPath '{app}' -ErrorAction SilentlyContinue; Add-MpPreference -ExclusionProcess '{app}\{#MyAppExeName}' -ErrorAction SilentlyContinue"""; \
+    Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Add-MpPreference -ExclusionProcess '{app}\{#MyAppExeName}' -ErrorAction SilentlyContinue"""; \
     Flags: runhidden waituntilterminated; StatusMsg: "Configuring Windows Defender exclusions..."
 
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; \
     Flags: nowait postinstall skipifsilent; WorkingDir: "{app}"
 
 [UninstallDelete]
-Type: filesandordirs; Name: "{app}\logs"
-Type: filesandordirs; Name: "{app}\temp"
-Type: filesandordirs; Name: "{app}\config"
+Type: filesandordirs; Name: "{commonappdata}\SpeakEasy AI\logs"
+Type: filesandordirs; Name: "{commonappdata}\SpeakEasy AI\temp"
+Type: filesandordirs; Name: "{commonappdata}\SpeakEasy AI\config"
 
 [UninstallRun]
 Filename: "powershell.exe"; \
-    Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Remove-MpPreference -ExclusionPath '{app}' -ErrorAction SilentlyContinue; Remove-MpPreference -ExclusionProcess '{app}\{#MyAppExeName}' -ErrorAction SilentlyContinue"""; \
+    Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Remove-MpPreference -ExclusionProcess '{app}\{#MyAppExeName}' -ErrorAction SilentlyContinue"""; \
     Flags: runhidden waituntilterminated; RunOnceId: "DefenderExclusions"
 
 [Code]
@@ -115,6 +116,9 @@ var
   CleanInstall: Boolean;
   ModelExists: Boolean;
 
+function SetEnvironmentVariable(Name, Value: String): Boolean;
+  external 'SetEnvironmentVariableW@kernel32.dll stdcall';
+
 { Called before file extraction.  Detects an existing install and cleans
   config/logs/temp so upgrades always start with fresh settings.
   Silent mode: auto-clean.  Interactive mode: prompt Clean vs Repair.
@@ -128,9 +132,9 @@ begin
   Result := '';
   CleanInstall := False;
   AppDir   := ExpandConstant('{app}');
-  ConfigDir := AppDir + '\config';
-  LogsDir   := AppDir + '\logs';
-  TempDir   := AppDir + '\temp';
+  ConfigDir := ExpandConstant('{commonappdata}') + '\SpeakEasy AI\config';
+  LogsDir   := ExpandConstant('{commonappdata}') + '\SpeakEasy AI\logs';
+  TempDir   := ExpandConstant('{commonappdata}') + '\SpeakEasy AI\temp';
 
   { Only act if there is an existing install with a config directory }
   if not DirExists(ConfigDir) then
@@ -396,10 +400,18 @@ var
   LogFiles: array[0..2] of String;
   I: Integer;
 begin
+  { Migrate from legacy dictat0r.AI location }
   OldSettings := ExpandConstant('{userappdata}\dictat0r.AI\settings.json');
-  NewSettings := ExpandConstant('{app}\config\settings.json');
+  NewSettings := ExpandConstant('{commonappdata}') + '\SpeakEasy AI\config\settings.json';
   if FileExists(OldSettings) and (not FileExists(NewSettings)) then
     CopyFile(OldSettings, NewSettings, False);
+
+  { Migrate settings from previous layout (data was under {app}) }
+  OldSettings := ExpandConstant('{app}\config\settings.json');
+  if FileExists(OldSettings) and (not FileExists(NewSettings)) then
+    CopyFile(OldSettings, NewSettings, False);
+
+  { Migrate models from legacy dictat0r.AI location }
   OldModelsDir := ExpandConstant('{localappdata}\dictat0r.AI\models');
   if DirExists(OldModelsDir) then
     if FindFirst(OldModelsDir + '\*', FindRec) then
@@ -409,7 +421,7 @@ begin
           if (FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0 then
             if (FindRec.Name <> '.') and (FindRec.Name <> '..') then
             begin
-              NewEngineDir := ExpandConstant('{app}\models\') + FindRec.Name;
+              NewEngineDir := ExpandConstant('{commonappdata}') + '\SpeakEasy AI\models\' + FindRec.Name;
               if not DirExists(NewEngineDir) then
                 DirectoryCopy(OldModelsDir + '\' + FindRec.Name, NewEngineDir);
             end;
@@ -418,6 +430,27 @@ begin
         FindClose(FindRec);
       end;
     end;
+
+  { Migrate models from previous layout (data was under {app}) }
+  OldModelsDir := ExpandConstant('{app}\models');
+  if DirExists(OldModelsDir) then
+    if FindFirst(OldModelsDir + '\*', FindRec) then
+    begin
+      try
+        repeat
+          if (FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0 then
+            if (FindRec.Name <> '.') and (FindRec.Name <> '..') then
+            begin
+              NewEngineDir := ExpandConstant('{commonappdata}') + '\SpeakEasy AI\models\' + FindRec.Name;
+              if not DirExists(NewEngineDir) then
+                DirectoryCopy(OldModelsDir + '\' + FindRec.Name, NewEngineDir);
+            end;
+        until not FindNext(FindRec);
+      finally
+        FindClose(FindRec);
+      end;
+    end;
+
   OldLogDir := ExpandConstant('{userappdata}\dictat0r.AI');
   LogFiles[0] := 'speakeasy.log';
   LogFiles[1] := 'speakeasy.log.1';
@@ -425,7 +458,7 @@ begin
   for I := 0 to 2 do
   begin
     OldLog := OldLogDir + '\' + LogFiles[I];
-    NewLog := ExpandConstant('{app}\logs\') + LogFiles[I];
+    NewLog := ExpandConstant('{commonappdata}') + '\SpeakEasy AI\logs\' + LogFiles[I];
     if FileExists(OldLog) and (not FileExists(NewLog)) then
       CopyFile(OldLog, NewLog, False);
   end;
@@ -435,7 +468,7 @@ procedure WriteDefaultSettings;
 var
   SettingsFile, Json: String;
 begin
-  SettingsFile := ExpandConstant('{app}\config\settings.json');
+  SettingsFile := ExpandConstant('{commonappdata}') + '\SpeakEasy AI\config\settings.json';
   if not FileExists(SettingsFile) then
   begin
     Json := '{' + #13#10 + '  "engine": "cohere"' + #13#10 + '}';
@@ -445,24 +478,22 @@ end;
 
 procedure ConfigureDefenderExclusions;
 var
-  AppDir, ExeFullPath, PsCmd: String;
+  ExeFullPath, PsCmd: String;
   ResultCode: Integer;
 begin
-  AppDir := ExpandConstant('{app}');
-  ExeFullPath := AppDir + '\{#MyAppExeName}';
-  PsCmd := 'Add-MpPreference -ExclusionPath ''' + AppDir + ''' -ErrorAction SilentlyContinue; ' +
-           'Add-MpPreference -ExclusionProcess ''' + ExeFullPath + ''' -ErrorAction SilentlyContinue';
+  ExeFullPath := ExpandConstant('{app}') + '\{#MyAppExeName}';
+  PsCmd := 'Add-MpPreference -ExclusionProcess ''' + ExeFullPath + ''' -ErrorAction SilentlyContinue';
   Exec('powershell.exe', '-NoProfile -ExecutionPolicy Bypass -Command "' + PsCmd + '"',
        '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 end;
 
 procedure DownloadModel;
 var
-  ExePath, ModelsDir, TokenArg: String;
+  ExePath, ModelsDir: String;
   ResultCode: Integer;
 begin
   ExePath := ExpandConstant('{app}\{#MyAppExeName}');
-  ModelsDir := ExpandConstant('{app}\models');
+  ModelsDir := ExpandConstant('{commonappdata}') + '\SpeakEasy AI\models';
   DownloadPage := CreateOutputProgressPage('Downloading Model',
     'Downloading the Cohere Transcribe speech model — the high-accuracy engine that powers SpeakEasy AI. This may take several minutes.');  
   DownloadPage.Show;
@@ -470,11 +501,11 @@ begin
     'Source: huggingface.co/CohereLabs/cohere-transcribe-03-2026');
   DownloadPage.SetProgress(0, 1);
   { download_model exit codes: 0 = success, 1 = failure, 2 = auth required }
-  TokenArg := '';
+  { Pass the token via environment variable to avoid exposing it in the process list }
   if HFToken <> '' then
-    TokenArg := ' --token "' + HFToken + '"';
+    SetEnvironmentVariable('HF_TOKEN', HFToken);
   try
-    Exec(ExePath, 'download-model --target-dir "' + ModelsDir + '"' + TokenArg,
+    Exec(ExePath, 'download-model --target-dir "' + ModelsDir + '"',
          '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     if ResultCode = 2 then
       MsgBox('Authentication failed. Make sure you have:' + #13#10 + #13#10 +
@@ -492,6 +523,7 @@ begin
            'You can download the model later using cohere-model-setup.ps1.',
            mbError, MB_OK);
   end;
+  SetEnvironmentVariable('HF_TOKEN', '');
   DownloadPage.SetProgress(1, 1);
   DownloadPage.Hide;
 end;
@@ -509,7 +541,7 @@ begin
     if not ModelExists then
       DownloadModel;
     InstDir := ExpandConstant('{app}');
-    ModelsDir := InstDir + '\models';
+    ModelsDir := ExpandConstant('{commonappdata}') + '\SpeakEasy AI\models';
     Summary := 'SpeakEasy AI {#MyAppVersion} is ready.' + #13#10;
     Summary := Summary + 'Press Ctrl+Alt+P from any application to start recording.' + #13#10;
     Summary := Summary + 'Powered by Cohere Transcribe — benchmarked at lower word error rate than Whisper Large v3.' + #13#10 + #13#10;
@@ -582,7 +614,7 @@ begin
   Result := True;
   if CurPageID = wpSelectDir then
   begin
-    CohereDir := ExpandConstant('{app}\models\cohere');
+    CohereDir := ExpandConstant('{commonappdata}') + '\SpeakEasy AI\models\cohere';
     ModelExists := DirExists(CohereDir) and FileExists(CohereDir + '\config.json');
   end;
 end;
@@ -593,7 +625,7 @@ var
 begin
   if CurUninstallStep = usUninstall then
   begin
-    AppDir := ExpandConstant('{app}');
+    AppDir    := ExpandConstant('{commonappdata}') + '\SpeakEasy AI';
     ModelsDir := AppDir + '\models';
     CohereDir := ModelsDir + '\cohere';
     if DirExists(CohereDir) then
@@ -603,6 +635,7 @@ begin
                    mbConfirmation, MB_YESNO) = IDYES then
           DelTree(CohereDir, True, True, True);
     if DirExists(ModelsDir) then RemoveDir(ModelsDir);
+    if DirExists(AppDir) then RemoveDir(AppDir);
   end;
   if CurUninstallStep = usPostUninstall then
   begin

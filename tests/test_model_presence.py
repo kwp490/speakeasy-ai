@@ -97,7 +97,7 @@ class TestModelPathResolution(unittest.TestCase):
                     importlib.reload(cfg)
 
     def test_frozen_mode_default(self):
-        """Without SPEAKEASY_HOME, INSTALL_DIR defaults to Program Files."""
+        """Without SPEAKEASY_HOME, DEFAULT_MODELS_DIR points to %ProgramData%."""
         with mock.patch.dict(os.environ, {}, clear=False):
             env = os.environ.copy()
             env.pop("SPEAKEASY_HOME", None)
@@ -106,8 +106,9 @@ class TestModelPathResolution(unittest.TestCase):
                 import speakeasy.config as cfg
                 importlib.reload(cfg)
                 try:
+                    programdata = os.environ.get("PROGRAMDATA", r"C:\ProgramData")
                     expected = str(
-                        Path(r"C:\Program Files\SpeakEasy AI") / "models"
+                        Path(programdata) / "SpeakEasy AI" / "models"
                     )
                     self.assertEqual(cfg.DEFAULT_MODELS_DIR, expected)
                 finally:

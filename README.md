@@ -1,6 +1,6 @@
 # SpeakEasy AI — Native Windows Voice-to-Text
 
-*Clean transcripts. Fewer corrections. Runs privately on your own machine.*
+*Clean transcripts. Fewer corrections. Speech-to-text runs privately on your own machine.*
 
 **Accurate, fast speech-to-text for Windows, powered by the Cohere Transcribe model.**
 
@@ -21,7 +21,7 @@ The difference corresponds to roughly **27% fewer transcription errors** relativ
 
 Other reasons to use SpeakEasy AI:
 
-- **Private by design** — audio is processed locally; nothing leaves your machine
+- **Private by default** — audio and transcription are processed locally; nothing leaves your machine unless you opt in to Professional Mode, which sends text to the OpenAI API for cleanup
 - **Runs anywhere** — GPU (CUDA) for fast inference, or CPU-only on any Windows PC
 - **Easy setup** — double-click installer, paste a HuggingFace token, and you're running
 - **Auto-paste** — transcribed text goes directly into the active window, no copy-paste needed

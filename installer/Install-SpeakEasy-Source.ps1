@@ -13,8 +13,9 @@
 
     If -Variant is not specified, the installer prompts interactively.
 
-    Requires Administrator elevation. Installs everything to C:\Program Files\SpeakEasy AI\
-    (binaries, models, config, logs, temp).
+    Installs everything to C:\Program Files\SpeakEasy AI\ (binaries, venv).
+    Mutable data (models, config, logs, temp) is stored under C:\ProgramData\SpeakEasy AI\
+    so the Program Files tree remains read-only for non-admin users.
 
 .PARAMETER Variant
     Installation variant: 'GPU' (default, CUDA-enabled) or 'CPU' (no GPU required).
@@ -37,10 +38,11 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $InstallDir = "C:\Program Files\SpeakEasy AI"
-$ModelsDir = "$InstallDir\models"
-$ConfigDir = "$InstallDir\config"
-$LogsDir   = "$InstallDir\logs"
-$TempDir   = "$InstallDir\temp"
+$DataDir   = "$env:PROGRAMDATA\SpeakEasy AI"
+$ModelsDir = "$DataDir\models"
+$ConfigDir = "$DataDir\config"
+$LogsDir   = "$DataDir\logs"
+$TempDir   = "$DataDir\temp"
 $RepoName = Split-Path -Leaf $PWD.Path
 
 function Write-Step($msg) { Write-Host "`n>> $msg" -ForegroundColor Cyan }
@@ -220,7 +222,7 @@ Write-Host "  The Cohere Transcribe model will be downloaded during installation
 Write-Host "  A HuggingFace account with access to the gated model is required."
 Write-Host "  Get your token at: https://huggingface.co/settings/tokens"
 Write-Host ""
-$HfToken = Read-Host "  Enter your HuggingFace API token (or press Enter to skip model download)"
+$HfTokenSecure = Read-Host -AsSecureString "  Enter your HuggingFace API token (or press Enter to skip model download)"
 
 # â”€â”€ Install uv â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Write-Step "Checking for uv package manager..."
@@ -548,15 +550,23 @@ Write-Step "Checking Cohere model (Cohere Transcribe 03-2026)..."
 $cohereDir = Join-Path $ModelsDir "cohere"
 if ((Test-Path (Join-Path $cohereDir "config.json"))) {
     Write-Already "Cohere model already present in $cohereDir"
-} elseif ([string]::IsNullOrWhiteSpace($HfToken)) {
-    Write-Warn "No HuggingFace token provided â€” skipping Cohere model download"
-    Write-Host "  Run later: cd '$InstallDir'; uv run speakeasy download-model --token YOUR_TOKEN --target-dir $ModelsDir" -ForegroundColor Yellow
+} elseif ($HfTokenSecure.Length -eq 0) {
+    Write-Warn "No HuggingFace token provided — skipping Cohere model download"
+    Write-Host "  Run later: cd '$InstallDir'; `$env:HF_TOKEN = 'your_token'; uv run speakeasy download-model --target-dir $ModelsDir" -ForegroundColor Yellow
 } else {
-    Write-Host "  Downloading Cohere model (CohereLabs/cohere-transcribe-03-2026)..."
-    Push-Location $InstallDir
-    Invoke-StreamingCommand 'Cohere model download' { uv run speakeasy download-model --token $HfToken --target-dir $ModelsDir }
-    Pop-Location
-    Write-Ok "Cohere model downloaded to $cohereDir"
+    # Extract token to plain text only for child process inheritance, then clear.
+    $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($HfTokenSecure)
+    $env:HF_TOKEN = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
+    [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+    try {
+        Write-Host "  Downloading Cohere model (CohereLabs/cohere-transcribe-03-2026)..."
+        Push-Location $InstallDir
+        Invoke-StreamingCommand 'Cohere model download' { uv run speakeasy download-model --target-dir $ModelsDir }
+        Pop-Location
+        Write-Ok "Cohere model downloaded to $cohereDir"
+    } finally {
+        $env:HF_TOKEN = $null
+    }
 }
 
 # â”€â”€ Patch build variant for CPU source installs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -604,26 +614,15 @@ Write-Ok "Default engine set to '$defaultEngine', device set to '$defaultDevice'
 
 # â”€â”€ Set permissions (current user gets Modify on install dir) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Write-Step "Checking directory permissions..."
-$currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
-$acl = Get-Acl $InstallDir
-$existingRule = $acl.Access | Where-Object {
-    $_.IdentityReference.Value -eq $currentUser -and
-    $_.FileSystemRights -band [System.Security.AccessControl.FileSystemRights]::Modify
-}
-if ($existingRule) {
-    Write-Already "$currentUser already has Modify access on $InstallDir"
-} else {
-    $rule = New-Object System.Security.AccessControl.FileSystemAccessRule(
-        $currentUser,
-        [System.Security.AccessControl.FileSystemRights]::Modify,
-        ([System.Security.AccessControl.InheritanceFlags]::ContainerInherit -bor
-         [System.Security.AccessControl.InheritanceFlags]::ObjectInherit),
-        [System.Security.AccessControl.PropagationFlags]::None,
-        [System.Security.AccessControl.AccessControlType]::Allow
-    )
-    $acl.AddAccessRule($rule)
-    Set-Acl -Path $InstallDir -AclObject $acl
-    Write-Ok "Granted $currentUser Modify access on $InstallDir"
+# Data dirs are under %ProgramData% which is writable by authenticated users
+# by default — no ACL changes are required.
+# Verify the data directories are accessible.
+foreach ($dir in @($ModelsDir, $ConfigDir, $LogsDir, $TempDir)) {
+    if (Test-Path $dir) {
+        Write-Already "$dir is accessible"
+    } else {
+        Write-Warn "$dir could not be verified (it should have been created above)"
+    }
 }
 
 # â”€â”€ Create desktop shortcut â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -646,9 +645,10 @@ if (Test-Path $shortcutPath) {
 
 # â”€â”€ Windows Defender exclusions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Write-Step "Configuring Windows Defender exclusions..."
+$exePath = "$InstallDir\.venv\Scripts\pythonw.exe"
 try {
-    Add-MpPreference -ExclusionPath $InstallDir -ErrorAction Stop
-    Write-Ok "Exclusion added for $InstallDir"
+    Add-MpPreference -ExclusionProcess $exePath -ErrorAction Stop
+    Write-Ok "Process exclusion added for $exePath"
 } catch {
     Write-Warn "Could not add Defender exclusion: $_"
 }

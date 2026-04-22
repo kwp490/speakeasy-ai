@@ -881,12 +881,16 @@ if ($Mode -eq 'Release') {
     # version, so explicitly nuke config/logs/temp to guarantee a clean slate.
     # Models are always preserved.
     $installDir = 'C:\Program Files\SpeakEasy AI'
+    $dataDir    = "$env:PROGRAMDATA\SpeakEasy AI"
     Write-Step "Cleaning leftover settings/logs/temp from previous install..."
-    foreach ($sub in @('config', 'logs', 'temp')) {
-        $dir = Join-Path $installDir $sub
-        if (Test-Path $dir) {
-            Remove-Item $dir -Recurse -Force
-            Write-Ok "Removed $dir"
+    # Clean old layout (data under Program Files) and new layout (data under ProgramData)
+    foreach ($baseDir in @($installDir, $dataDir)) {
+        foreach ($sub in @('config', 'logs', 'temp')) {
+            $dir = Join-Path $baseDir $sub
+            if (Test-Path $dir) {
+                Remove-Item $dir -Recurse -Force
+                Write-Ok "Removed $dir"
+            }
         }
     }
 

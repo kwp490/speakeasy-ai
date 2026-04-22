@@ -6,8 +6,10 @@
 # the model after installation.
 #
 # The HuggingFace token is used for this single download only.
-# It is NOT stored anywhere — not in settings, not on disk, not in
-# environment variables.
+# It is NOT stored anywhere — not in settings or on disk.
+# It is briefly set as the HF_TOKEN environment variable so the child
+# process can inherit it without the token appearing on the command line.
+# The variable is cleared immediately after the download completes.
 # ─────────────────────────────────────────────────────────────────────────────
 
 param(
@@ -58,20 +60,27 @@ function Write-Instructions {
 function Start-Download {
     while ($true) {
         Write-Host ''
-        $token = Read-Host 'Paste your HuggingFace access token (or type "skip" to cancel)'
+        $secureToken = Read-Host -AsSecureString 'Paste your HuggingFace access token (press Enter to skip)'
 
-        if ($token -eq 'skip' -or $token -eq '') {
+        if ($secureToken.Length -eq 0) {
             Write-Host ''
             Write-Host 'Skipped. You can run this setup later:' -ForegroundColor Yellow
-            Write-Host "  $Exe download-model --token <YOUR_TOKEN>" -ForegroundColor Gray
+            Write-Host "  `$env:HF_TOKEN = 'your_token'; & '$Exe' download-model" -ForegroundColor Gray
             return 1
         }
+
+        # Extract to plain text only for the child process lifetime, then clear.
+        # The token is passed via environment variable, not on the command line,
+        # so it does not appear in the Windows process list.
+        $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureToken)
+        $env:HF_TOKEN = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
+        [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
 
         Write-Host ''
         Write-Host 'Downloading Cohere model — this may take several minutes...' -ForegroundColor Cyan
 
         try {
-            $arguments = @('download-model', '--token', $token)
+            $arguments = @('download-model')
             if ($TargetDir) {
                 $arguments += @('--target-dir', "`"$TargetDir`"")
             }
@@ -103,10 +112,12 @@ function Start-Download {
             if ($retry -ne 'R' -and $retry -ne 'r') {
                 Write-Host ''
                 Write-Host 'Skipped. You can run this setup later:' -ForegroundColor Yellow
-                Write-Host "  $Exe download-model --token <YOUR_TOKEN>" -ForegroundColor Gray
+                Write-Host "  `$env:HF_TOKEN = 'your_token'; & '$Exe' download-model" -ForegroundColor Gray
                 return 1
             }
             continue
+        } finally {
+            $env:HF_TOKEN = $null
         }
 
         switch ($process.ExitCode) {
@@ -138,7 +149,7 @@ function Start-Download {
         if ($retry -ne 'R' -and $retry -ne 'r') {
             Write-Host ''
             Write-Host 'Skipped. You can run this setup later:' -ForegroundColor Yellow
-            Write-Host "  $Exe download-model --token <YOUR_TOKEN>" -ForegroundColor Gray
+            Write-Host "  `$env:HF_TOKEN = 'your_token'; & '$Exe' download-model" -ForegroundColor Gray
             return 1
         }
     }

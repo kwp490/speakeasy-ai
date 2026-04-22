@@ -30,10 +30,14 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    default_dir = os.path.join(
-        os.environ.get("SPEAKEASY_HOME", r"C:\Program Files\SpeakEasy AI"),
-        "models",
-    )
+    if "SPEAKEASY_HOME" in os.environ:
+        default_dir = os.path.join(os.environ["SPEAKEASY_HOME"], "models")
+    else:
+        default_dir = os.path.join(
+            os.environ.get("PROGRAMDATA", r"C:\ProgramData"),
+            "SpeakEasy AI",
+            "models",
+        )
     target_dir = args.target_dir or default_dir
     os.makedirs(target_dir, exist_ok=True)
 
