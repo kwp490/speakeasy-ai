@@ -14,11 +14,11 @@ jobs:
       matrix:
         variant: [gpu, cpu]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - uses: astral-sh/setup-uv@v4
+      - uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4
         with:
-          version: "latest"
+          version: "0.11.7"
 
       - name: Install dependencies
         run: uv sync --extra dev
@@ -29,7 +29,7 @@ jobs:
           uv run pyinstaller $spec
 
       - name: Install Inno Setup
-        run: choco install innosetup -y --no-progress
+        run: choco install innosetup --version=6.7.1 -y --no-progress
 
       - name: Build GUI installer
         run: |
@@ -38,7 +38,7 @@ jobs:
           & $iscc $iss
 
       - name: Upload installer artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: installer-${{ matrix.variant }}
           path: installer/Output/*.exe
@@ -48,16 +48,16 @@ jobs:
     needs: build
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Download GPU installer
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: installer-gpu
           path: installer/Output/
 
       - name: Download CPU installer
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: installer-cpu
           path: installer/Output/
@@ -73,7 +73,7 @@ jobs:
           $lines | Out-File -FilePath "installer\Output\SHA256SUMS.txt" -Encoding utf8
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           files: |
             installer/Output/SpeakEasy-AI-Setup-*.exe
