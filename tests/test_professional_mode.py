@@ -1,4 +1,4 @@
-"""Tests for Professional Mode worker lifetime and signal delivery.
+﻿"""Tests for Professional Mode worker lifetime and signal delivery.
 
 These tests catch the class of bugs where:
   - The Worker is garbage-collected before its signals are delivered.
@@ -19,12 +19,12 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
-_MAIN_WINDOW_PATH = _REPO_ROOT / "dictator" / "main_window.py"
+_MAIN_WINDOW_PATH = _REPO_ROOT / "speakeasy" / "main_window.py"
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Structural tests — verify the source code meets safety invariants
-# ═════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# Structural tests â€” verify the source code meets safety invariants
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 
 class TestProModeWorkerLifetimeInvariants(unittest.TestCase):
@@ -47,7 +47,7 @@ class TestProModeWorkerLifetimeInvariants(unittest.TestCase):
                 break
         assert cls._mw_class is not None, "MainWindow class not found"
 
-    # ── 1. Worker must be stored on self ─────────────────────────────────
+    # â”€â”€ 1. Worker must be stored on self â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def test_pro_worker_stored_as_instance_attr(self):
         """_pro_worker must be assigned in __init__ (not just a local)."""
@@ -89,7 +89,7 @@ class TestProModeWorkerLifetimeInvariants(unittest.TestCase):
             "self._pro_worker must be assigned before self._pool.start()",
         )
 
-    # ── 2. No lambda signal connections ──────────────────────────────────
+    # â”€â”€ 2. No lambda signal connections â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def test_no_lambda_in_professional_signal_connections(self):
         """Professional mode signal connections must use bound methods, not lambdas.
@@ -112,13 +112,13 @@ class TestProModeWorkerLifetimeInvariants(unittest.TestCase):
                     f"(line ~{i+1} of _on_transcription_result):\n{context}",
                 )
 
-    # ── 3. Auto-delete must be disabled ──────────────────────────────────
+    # â”€â”€ 3. Auto-delete must be disabled â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def test_auto_delete_disabled_for_pro_worker(self):
         """The professional mode worker must call setAutoDelete(False).
 
         Regression: With autoDelete=True (the default), the C++ QRunnable
-        is destroyed by QThreadPool immediately after run() returns —
+        is destroyed by QThreadPool immediately after run() returns â€”
         before the queued cross-thread signals reach the main event loop.
         """
         result_src = self._get_method_source("_on_transcription_result")
@@ -126,10 +126,10 @@ class TestProModeWorkerLifetimeInvariants(unittest.TestCase):
             "setAutoDelete(False)",
             result_src,
             "Professional mode worker must disable auto-delete "
-            "(setAutoDelete(False)) — we manage its lifetime via self._pro_worker",
+            "(setAutoDelete(False)) â€” we manage its lifetime via self._pro_worker",
         )
 
-    # ── 4. Safety timeout must exist ─────────────────────────────────────
+    # â”€â”€ 4. Safety timeout must exist â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def test_safety_timeout_created(self):
         """A safety timeout must be started when the cleanup worker is dispatched.
@@ -156,7 +156,7 @@ class TestProModeWorkerLifetimeInvariants(unittest.TestCase):
             "MainWindow must define _on_professional_timeout() as a safety net",
         )
 
-    # ── 5. Context stored on self (not captured by closure) ──────────────
+    # â”€â”€ 5. Context stored on self (not captured by closure) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def test_pro_context_stored_on_self(self):
         """Transcription timestamp and text must be stored as self._pro_context.
@@ -171,7 +171,7 @@ class TestProModeWorkerLifetimeInvariants(unittest.TestCase):
             "_on_transcription_result must store (ts, text) as self._pro_context",
         )
 
-    # ── 6. Handlers read context BEFORE clearing it ────────────────────
+    # â”€â”€ 6. Handlers read context BEFORE clearing it â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def test_result_handler_reads_context_before_cancel(self):
         """_on_professional_result must read _pro_context BEFORE _cancel_pro_timeout.
@@ -192,7 +192,7 @@ class TestProModeWorkerLifetimeInvariants(unittest.TestCase):
     def test_error_handler_reads_context_before_cancel(self):
         """_on_professional_error must read _pro_context BEFORE _cancel_pro_timeout.
 
-        Same regression as the result handler — cancel clears context.
+        Same regression as the result handler â€” cancel clears context.
         """
         src = self._get_method_source("_on_professional_error")
         cancel_pos = src.find("_cancel_pro_timeout")
@@ -221,7 +221,7 @@ class TestProModeWorkerLifetimeInvariants(unittest.TestCase):
             "_on_professional_finished must clear the worker reference",
         )
 
-    # ── 7. finished signal connected ─────────────────────────────────────
+    # â”€â”€ 7. finished signal connected â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def test_finished_signal_connected(self):
         """The worker's finished signal must be connected to _on_professional_finished."""
@@ -233,7 +233,7 @@ class TestProModeWorkerLifetimeInvariants(unittest.TestCase):
             "to clear self._pro_worker",
         )
 
-    # ── Helpers ──────────────────────────────────────────────────────────
+    # â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def _get_method_source(self, method_name: str) -> str:
         """Extract the source text of a method from MainWindow."""
@@ -243,9 +243,9 @@ class TestProModeWorkerLifetimeInvariants(unittest.TestCase):
         self.fail(f"Method '{method_name}' not found in MainWindow")
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Integration tests — verify signal delivery with a real Qt environment
-# ═════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# Integration tests â€” verify signal delivery with a real Qt environment
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 
 def _qt_available() -> bool:
@@ -273,7 +273,7 @@ class TestProModeWorkerSignalDelivery(unittest.TestCase):
     def test_worker_result_delivered_with_stored_ref(self):
         """Worker result signal MUST be delivered when we store a reference."""
         from PySide6.QtCore import QThreadPool, QTimer
-        from dictator.workers import Worker
+        from speakeasy.workers import Worker
 
         pool = QThreadPool.globalInstance()
         result_box = [None]
@@ -310,7 +310,7 @@ class TestProModeWorkerSignalDelivery(unittest.TestCase):
     def test_worker_error_delivered_with_stored_ref(self):
         """Worker error signal MUST be delivered when we store a reference."""
         from PySide6.QtCore import QThreadPool
-        from dictator.workers import Worker
+        from speakeasy.workers import Worker
 
         pool = QThreadPool.globalInstance()
         error_box = [None]
@@ -351,7 +351,7 @@ class TestProModeWorkerSignalDelivery(unittest.TestCase):
         silently disappear under load (e.g. rapid dictation cycles).
         """
         from PySide6.QtCore import QThreadPool
-        from dictator.workers import Worker
+        from speakeasy.workers import Worker
 
         pool = QThreadPool.globalInstance()
         n = 10
@@ -381,20 +381,20 @@ class TestProModeWorkerSignalDelivery(unittest.TestCase):
 
         self.assertEqual(
             finished_count[0], n,
-            f"Only {finished_count[0]}/{n} workers finished — "
+            f"Only {finished_count[0]}/{n} workers finished â€” "
             f"signals for {n - finished_count[0]} workers were silently lost",
         )
         self.assertEqual(
             len(results), n,
-            f"Only {len(results)}/{n} results delivered — "
+            f"Only {len(results)}/{n} results delivered â€” "
             f"{n - len(results)} result signals were silently lost",
         )
         workers.clear()
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Structural tests — preset-based architecture invariants
-# ═════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# Structural tests â€” preset-based architecture invariants
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 
 class TestPresetArchitectureInvariants(unittest.TestCase):
@@ -422,7 +422,7 @@ class TestPresetArchitectureInvariants(unittest.TestCase):
                 return ast.get_source_segment(self._source, node) or ""
         self.fail(f"Method '{method_name}' not found in MainWindow")
 
-    # ── Init invariants ──────────────────────────────────────────────────
+    # â”€â”€ Init invariants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def test_pro_presets_stored_in_init(self):
         """MainWindow.__init__ must declare self._pro_presets."""
@@ -445,7 +445,7 @@ class TestPresetArchitectureInvariants(unittest.TestCase):
         self.assertNotIn("PRO: ON", src)
         self.assertNotIn("PRO: OFF", src)
 
-    # ── Transcription uses preset ────────────────────────────────────────
+    # â”€â”€ Transcription uses preset â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def test_transcription_uses_preset_kwarg(self):
         """_on_transcription_result must pass preset= to process()."""
@@ -466,7 +466,7 @@ class TestPresetArchitectureInvariants(unittest.TestCase):
         src = self._get_method_source("_on_transcription_result")
         self.assertIn("preset = self._active_preset", src)
 
-    # ── No references to removed settings fields ─────────────────────────
+    # â”€â”€ No references to removed settings fields â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def test_no_pro_fix_tone_in_main_window(self):
         """Removed field pro_fix_tone must not appear in main_window.py."""
@@ -486,7 +486,7 @@ class TestPresetArchitectureInvariants(unittest.TestCase):
         self.assertNotIn("settings.pro_model", self._source)
         self.assertNotIn("s.pro_model", self._source)
 
-    # ── Professional Mode toggle ─────────────────────────────────────────
+    # â”€â”€ Professional Mode toggle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def test_on_pro_toggle_removed_from_main_window(self):
         """_on_pro_toggle must no longer exist in MainWindow (moved to SettingsDialog)."""
@@ -514,19 +514,19 @@ class TestPresetArchitectureInvariants(unittest.TestCase):
 
     def test_pro_toggle_saves_settings_in_pro_dialog(self):
         """ProSettingsDialog._save_and_accept must persist professional_mode."""
-        pro_src = (_REPO_ROOT / "dictator" / "pro_settings_dialog.py").read_text(encoding="utf-8")
+        pro_src = (_REPO_ROOT / "speakeasy" / "pro_settings_dialog.py").read_text(encoding="utf-8")
         self.assertIn("professional_mode", pro_src)
 
     def test_preset_combo_changed_saves_settings_in_pro_dialog(self):
         """ProSettingsDialog._save_and_accept must persist pro_active_preset."""
-        pro_src = (_REPO_ROOT / "dictator" / "pro_settings_dialog.py").read_text(encoding="utf-8")
+        pro_src = (_REPO_ROOT / "speakeasy" / "pro_settings_dialog.py").read_text(encoding="utf-8")
         self.assertIn("pro_active_preset", pro_src)
 
-    # ── Settings dialog no longer has pro fields ─────────────────────────
+    # â”€â”€ Settings dialog no longer has pro fields â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def test_settings_dialog_no_api_key_param(self):
         """SettingsDialog no longer accepts api_key parameter."""
-        settings_src = (_REPO_ROOT / "dictator" / "settings_dialog.py").read_text(encoding="utf-8")
+        settings_src = (_REPO_ROOT / "speakeasy" / "settings_dialog.py").read_text(encoding="utf-8")
         tree = ast.parse(settings_src)
         for node in ast.walk(tree):
             if isinstance(node, ast.ClassDef) and node.name == "SettingsDialog":
@@ -540,15 +540,15 @@ class TestPresetArchitectureInvariants(unittest.TestCase):
 
     def test_settings_dialog_no_professional_mode_section(self):
         """SettingsDialog must NOT contain Professional Mode section (moved to dedicated dialog)."""
-        settings_src = (_REPO_ROOT / "dictator" / "settings_dialog.py").read_text(encoding="utf-8")
+        settings_src = (_REPO_ROOT / "speakeasy" / "settings_dialog.py").read_text(encoding="utf-8")
         self.assertNotIn("Professional Mode", settings_src)
         self.assertNotIn("_pro_enabled", settings_src)
         self.assertNotIn("_pro_preset_combo", settings_src)
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Backward compatibility — old settings.json with removed fields
-# ═════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# Backward compatibility â€” old settings.json with removed fields
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 
 class TestBackwardCompatibility(unittest.TestCase):
@@ -559,7 +559,7 @@ class TestBackwardCompatibility(unittest.TestCase):
         without error, silently ignoring the unknown keys."""
         import json
         import tempfile
-        from dictator.config import Settings
+        from speakeasy.config import Settings
 
         with tempfile.TemporaryDirectory() as td:
             path = Path(td) / "settings.json"
@@ -587,7 +587,7 @@ class TestBackwardCompatibility(unittest.TestCase):
         """Saved settings.json must not contain removed fields."""
         import json
         import tempfile
-        from dictator.config import Settings
+        from speakeasy.config import Settings
 
         with tempfile.TemporaryDirectory() as td:
             path = Path(td) / "settings.json"
@@ -600,9 +600,9 @@ class TestBackwardCompatibility(unittest.TestCase):
             self.assertIn("pro_active_preset", raw)
 
 
-# ═════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 # Text processor preset integration
-# ═════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 
 class TestTextProcessorPresetIntegration(unittest.TestCase):
@@ -612,8 +612,8 @@ class TestTextProcessorPresetIntegration(unittest.TestCase):
         """When a preset specifies a model, it should be used instead of
         the constructor model."""
         from unittest.mock import MagicMock
-        from dictator.text_processor import TextProcessor
-        from dictator.pro_preset import ProPreset
+        from speakeasy.text_processor import TextProcessor
+        from speakeasy.pro_preset import ProPreset
 
         proc = TextProcessor(api_key="sk-test", model="gpt-5.4-mini")
         proc._client = MagicMock()
@@ -632,8 +632,8 @@ class TestTextProcessorPresetIntegration(unittest.TestCase):
     def test_preset_empty_model_falls_back_to_constructor(self):
         """When preset.model is empty, fall back to the constructor model."""
         from unittest.mock import MagicMock
-        from dictator.text_processor import TextProcessor
-        from dictator.pro_preset import ProPreset
+        from speakeasy.text_processor import TextProcessor
+        from speakeasy.pro_preset import ProPreset
 
         proc = TextProcessor(api_key="sk-test", model="gpt-5.4-mini")
         proc._client = MagicMock()
@@ -652,8 +652,8 @@ class TestTextProcessorPresetIntegration(unittest.TestCase):
     def test_preset_flags_override_kwargs(self):
         """Preset flags must take priority over keyword arguments."""
         from unittest.mock import MagicMock
-        from dictator.text_processor import TextProcessor
-        from dictator.pro_preset import ProPreset
+        from speakeasy.text_processor import TextProcessor
+        from speakeasy.pro_preset import ProPreset
 
         proc = TextProcessor(api_key="sk-test", model="gpt-5.4-mini")
         proc._client = MagicMock()
@@ -672,15 +672,15 @@ class TestTextProcessorPresetIntegration(unittest.TestCase):
             "test", fix_tone=True, fix_grammar=True,
             fix_punctuation=True, preset=preset,
         )
-        # All flags off + no custom prompt → should return original
+        # All flags off + no custom prompt â†’ should return original
         self.assertEqual(result, "test")
         proc._client.chat.completions.create.assert_not_called()
 
     def test_vocabulary_preservation_in_prompt(self):
         """Vocabulary terms must appear in the system prompt sent to the API."""
         from unittest.mock import MagicMock
-        from dictator.text_processor import TextProcessor
-        from dictator.pro_preset import ProPreset
+        from speakeasy.text_processor import TextProcessor
+        from speakeasy.pro_preset import ProPreset
 
         proc = TextProcessor(api_key="sk-test", model="gpt-5.4-mini")
         proc._client = MagicMock()
@@ -705,8 +705,8 @@ class TestTextProcessorPresetIntegration(unittest.TestCase):
     def test_custom_system_prompt_in_api_call(self):
         """Custom system prompt from preset must appear in the API call."""
         from unittest.mock import MagicMock
-        from dictator.text_processor import TextProcessor
-        from dictator.pro_preset import ProPreset
+        from speakeasy.text_processor import TextProcessor
+        from speakeasy.pro_preset import ProPreset
 
         proc = TextProcessor(api_key="sk-test", model="gpt-5.4-mini")
         proc._client = MagicMock()
@@ -731,8 +731,8 @@ class TestTextProcessorPresetIntegration(unittest.TestCase):
 
     def test_all_builtin_presets_generate_valid_prompts(self):
         """Every built-in preset must generate a non-empty system prompt."""
-        from dictator.text_processor import _build_system_prompt
-        from dictator.pro_preset import get_builtin_presets
+        from speakeasy.text_processor import _build_system_prompt
+        from speakeasy.pro_preset import get_builtin_presets
 
         for name, preset in get_builtin_presets().items():
             prompt = _build_system_prompt(
@@ -748,3 +748,5 @@ class TestTextProcessorPresetIntegration(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+

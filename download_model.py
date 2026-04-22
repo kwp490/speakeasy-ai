@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Model downloader for dictat0r.AI.
+Model downloader for SpeakEasy AI.
 
-Standalone script that can also be invoked via ``dictator download-model``.
+Standalone script that can also be invoked via ``speakeasy download-model``.
 
 Usage:
-    python download_model.py --token hf_... --target-dir "C:\\Program Files\\dictat0r.AI\\models"
+    python download_model.py --token hf_... --target-dir "C:\\Program Files\\SpeakEasy AI\\models"
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ import sys
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Download the Cohere Transcribe model for dictat0r.AI.")
+    parser = argparse.ArgumentParser(description="Download the Cohere Transcribe model for SpeakEasy AI.")
     parser.add_argument(
         "--token",
         default=None,
@@ -26,18 +26,18 @@ def main() -> int:
     parser.add_argument(
         "--target-dir",
         default=None,
-        help="Directory to store models (default: C:\\Program Files\\dictat0r.AI\\models)",
+        help="Directory to store models (default: C:\\Program Files\\SpeakEasy AI\\models)",
     )
     args = parser.parse_args()
 
     default_dir = os.path.join(
-        os.environ.get("DICTATOR_HOME", r"C:\Program Files\dictat0r.AI"),
+        os.environ.get("SPEAKEASY_HOME", r"C:\Program Files\SpeakEasy AI"),
         "models",
     )
     target_dir = args.target_dir or default_dir
     os.makedirs(target_dir, exist_ok=True)
 
-    from dictator.model_downloader import download_model
+    from speakeasy.model_downloader import download_model
     return download_model("cohere", target_dir, token=args.token)
 
 

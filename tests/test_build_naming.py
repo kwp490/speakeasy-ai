@@ -1,4 +1,4 @@
-"""Tests for build/installer naming consistency.
+﻿"""Tests for build/installer naming consistency.
 
 These tests catch stale names and broken cross-file references that prevent
 Build-Installer.ps1 from working.  They parse the build scripts statically
@@ -12,13 +12,13 @@ from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
-# ── Helper: read a file as text ──────────────────────────────────────────────
+# â”€â”€ Helper: read a file as text â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def _read(relpath: str) -> str:
     return (_REPO_ROOT / relpath).read_text(encoding="utf-8")
 
 
-# ── Helpers: extract values from Inno Setup (.iss) ───────────────────────────
+# â”€â”€ Helpers: extract values from Inno Setup (.iss) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def _iss_define(text: str, name: str) -> str | None:
     """Return the value of ``#define <name> "value"`` from an .iss file."""
@@ -64,7 +64,7 @@ class TestBuildInstallerPaths(unittest.TestCase):
         self.assertTrue(
             (_REPO_ROOT / pkg_dir).is_dir(),
             f"Get-SourceHash scans '{pkg_dir}/' but that directory does not exist. "
-            f"The Python package directory is 'dictator/'.",
+            f"The Python package directory is 'speakeasy/'.",
         )
 
     def test_spec_file_referenced_exists(self):
@@ -78,17 +78,17 @@ class TestBuildInstallerPaths(unittest.TestCase):
 
 
 class TestBuildInstallerReleaseReferences(unittest.TestCase):
-    """Build-Installer.ps1 release mode must agree with dictator-setup.iss and the package layout."""
+    """Build-Installer.ps1 release mode must agree with speakeasy-setup.iss and the package layout."""
 
     @classmethod
     def setUpClass(cls):
         cls.build_ps1_full = _read("installer/Build-Installer.ps1")
-        cls.iss_text = _read("installer/dictator-setup.iss")
+        cls.iss_text = _read("installer/speakeasy-setup.iss")
 
     def test_registry_guid_matches_iss(self):
         """The uninstall GUID in Build-Installer.ps1 must match AppId in .iss."""
         iss_guid = _iss_app_id(self.iss_text)
-        self.assertIsNotNone(iss_guid, "Could not parse AppId from dictator-setup.iss")
+        self.assertIsNotNone(iss_guid, "Could not parse AppId from speakeasy-setup.iss")
 
         # Find all GUIDs in the Build-Installer.ps1 uninstall key lines
         guids = re.findall(
@@ -99,7 +99,7 @@ class TestBuildInstallerReleaseReferences(unittest.TestCase):
             self.assertEqual(
                 guid, iss_guid,
                 f"Build-Installer.ps1 GUID '{guid}' does not match "
-                f"dictator-setup.iss AppId '{iss_guid}'",
+                f"speakeasy-setup.iss AppId '{iss_guid}'",
             )
 
     def test_module_name_matches_package(self):
@@ -133,7 +133,7 @@ class TestBuildInstallerReleaseReferences(unittest.TestCase):
         output_base = re.search(r"OutputBaseFilename=(.+)", self.iss_text)
         self.assertIsNotNone(output_base, "Could not parse OutputBaseFilename from .iss")
         # OutputBaseFilename contains {#MyAppVersion} which resolves to the version
-        # Build-Installer.ps1 uses a wildcard like dictator-AI-Setup-*.exe
+        # Build-Installer.ps1 uses a wildcard like SpeakEasy-AI-Setup-*.exe
         iss_base = output_base.group(1).strip()
         # Replace InnoSetup preprocessor tokens with regex wildcards
         iss_pattern = re.sub(r"\{#\w+\}", ".*", iss_base)
@@ -143,7 +143,7 @@ class TestBuildInstallerReleaseReferences(unittest.TestCase):
         m = re.search(r'Get-ChildItem\s+"([^"]+Setup[^"]*\.exe)"', self.build_ps1_full)
         if m is None:
             # Variant-aware: look for the glob pattern in a variable assignment
-            m = re.search(r"'(dictator-AI-Setup-\*\.exe)'", self.build_ps1_full)
+            m = re.search(r"'(SpeakEasy-AI-Setup-\*\.exe)'", self.build_ps1_full)
         self.assertIsNotNone(m, "Could not find installer glob in Build-Installer.ps1")
         # Convert PowerShell glob to comparable form (replace * with .*)
         ps_pattern = m.group(1).replace("\\", "/").split("/")[-1].replace("*", ".*")
@@ -165,10 +165,10 @@ class TestNoStaleProjectNames(unittest.TestCase):
 
     _FILES_TO_CHECK = [
         "installer/Build-Installer.ps1",
-        "installer/dictator-setup.iss",
-        "dictator.spec",
+        "installer/speakeasy-setup.iss",
+        "speakeasy.spec",
         "pyproject.toml",
-        "installer/Install-Dictator-Source.ps1",
+        "installer/Install-SpeakEasy-Source.ps1",
     ]
 
     def test_no_stale_names_in_build_files(self):
@@ -195,14 +195,14 @@ class TestNoStaleProjectNames(unittest.TestCase):
 
 
 class TestCrossFileVersionConsistency(unittest.TestCase):
-    """Version strings must agree across pyproject.toml and dictator-setup.iss."""
+    """Version strings must agree across pyproject.toml and speakeasy-setup.iss."""
 
     def test_versions_match(self):
         pyproject = _read("pyproject.toml")
         m_py = re.search(r'version\s*=\s*"([^"]+)"', pyproject)
         self.assertIsNotNone(m_py, "Could not parse version from pyproject.toml")
 
-        iss_text = _read("installer/dictator-setup.iss")
+        iss_text = _read("installer/speakeasy-setup.iss")
         m_iss = _iss_define(iss_text, "MyAppVersion")
         self.assertIsNotNone(m_iss, "Could not parse MyAppVersion from .iss")
 
@@ -261,7 +261,7 @@ class TestTorchTorchaudioCompatibility(unittest.TestCase):
         self.assertEqual(
             torch_major, ta_major,
             f"torch {torch.__version__} and torchaudio {torchaudio.__version__} "
-            f"have mismatched major versions — this causes DLL load failures. "
+            f"have mismatched major versions â€” this causes DLL load failures. "
             f"Pin both to the same index in pyproject.toml [tool.uv.sources].",
         )
 
@@ -283,29 +283,29 @@ class TestTorchTorchaudioCompatibility(unittest.TestCase):
 
 
 class TestInstallerHandlesGatedRepos(unittest.TestCase):
-    """dictator-setup.iss must handle the Cohere gated model and bundle the setup script."""
+    """speakeasy-setup.iss must handle the Cohere gated model and bundle the setup script."""
 
     @classmethod
     def setUpClass(cls):
-        cls.iss_text = _read("installer/dictator-setup.iss")
+        cls.iss_text = _read("installer/speakeasy-setup.iss")
 
     def test_iss_downloads_cohere(self):
         """The ISS script must download the Cohere model via download-model."""
         self.assertIsNotNone(
             re.search(r"download-model", self.iss_text),
-            "dictator-setup.iss must contain a download-model invocation.",
+            "speakeasy-setup.iss must contain a download-model invocation.",
         )
 
     def test_iss_bundles_cohere_setup_script(self):
         """The ISS [Files] section must include cohere-model-setup.ps1."""
         self.assertIsNotNone(
             re.search(r'cohere-model-setup\.ps1', self.iss_text),
-            "dictator-setup.iss must reference cohere-model-setup.ps1 in the [Files] section.",
+            "speakeasy-setup.iss must reference cohere-model-setup.ps1 in the [Files] section.",
         )
 
     def test_exit_code_constants_match_python(self):
         """The exit code comment in .iss must match the Python constants."""
-        from dictator.model_downloader import EXIT_AUTH_REQUIRED, EXIT_FAILURE, EXIT_SUCCESS
+        from speakeasy.model_downloader import EXIT_AUTH_REQUIRED, EXIT_FAILURE, EXIT_SUCCESS
         self.assertIn(
             f"{EXIT_SUCCESS} = success", self.iss_text,
             "ISS exit code comment for success doesn't match Python EXIT_SUCCESS",
@@ -322,3 +322,5 @@ class TestInstallerHandlesGatedRepos(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+

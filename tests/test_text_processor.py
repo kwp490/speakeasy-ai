@@ -1,7 +1,7 @@
-import unittest
+﻿import unittest
 from unittest.mock import MagicMock, patch
 
-from dictator.text_processor import TextProcessor, _build_system_prompt, _sanitize_error
+from speakeasy.text_processor import TextProcessor, _build_system_prompt, _sanitize_error
 
 
 class BuildSystemPromptTests(unittest.TestCase):
@@ -142,7 +142,7 @@ class TextProcessorProcessTests(unittest.TestCase):
         self.assertEqual(result, "angry text")
 
     def test_process_with_preset(self):
-        from dictator.pro_preset import ProPreset
+        from speakeasy.pro_preset import ProPreset
 
         proc = self._make_processor()
         mock_choice = MagicMock()
@@ -222,3 +222,4 @@ class TextProcessorValidateKeyTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

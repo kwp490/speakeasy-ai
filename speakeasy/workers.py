@@ -68,7 +68,7 @@ class DedicatedWorkerPool(QObject):
     the UI already uses, but runs QRunnables on a ``ThreadPoolExecutor``.
     """
 
-    def __init__(self, parent: Optional[QObject] = None, thread_name_prefix: str = "dictator-engine"):
+    def __init__(self, parent: Optional[QObject] = None, thread_name_prefix: str = "speakeasy-engine"):
         super().__init__(parent)
         self._thread_name_prefix = thread_name_prefix
         self._max_workers = 1

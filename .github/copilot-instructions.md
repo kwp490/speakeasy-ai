@@ -1,4 +1,4 @@
-# Copilot Instructions — dictat0r.AI
+# Copilot Instructions — SpeakEasy AI
 
 ## Project overview
 
@@ -11,7 +11,7 @@ Package manager: **uv** (not pip). All commands use `uv run` / `uv sync`.
 ## Directory map
 
 ```
-dictator/               # Application source package
+speakeasy/               # Application source package
   __main__.py           # Entry point, single-instance mutex, CLI (download-model, --version)
   main_window.py        # PySide6 QMainWindow — UI, engine lifecycle, audio, clipboard, hotkeys
   config.py             # Settings dataclass, JSON persistence, path constants (INSTALL_DIR)
@@ -35,10 +35,10 @@ dictator/               # Application source package
     audio_utils.py      # Resampling (ensure_16khz), audio preprocessing
 installer/
   Build-Installer.ps1   # Build/install/source-run tool (modes: Build, Release, Source, Install)
-  Install-Dictator-Source.ps1 # Automated source install (admin); supports -Variant GPU|CPU
+  Install-SpeakEasy-Source.ps1 # Automated source install (admin); supports -Variant GPU|CPU
   cohere-model-setup.ps1# HF model download helper invoked by Inno Setup post-install
-  dictator-setup.iss    # Inno Setup script (GPU)
-  dictator-cpu-setup.iss# Inno Setup script (CPU)
+  speakeasy-setup.iss    # Inno Setup script (GPU)
+  speakeasy-cpu-setup.iss# Inno Setup script (CPU)
 tests/                  # pytest suite
 dev-temp/               # Ephemeral local dev data (gitignored)
 ```
@@ -48,7 +48,7 @@ dev-temp/               # Ephemeral local dev data (gitignored)
 ```powershell
 uv sync --extra dev                                      # Install all deps
 uv run pytest tests/ -v                                  # Run test suite
-uv run python -m dictator                                # Run from source (needs DICTATOR_HOME)
+uv run python -m speakeasy                                # Run from source (needs SPEAKEASY_HOME)
 .\installer\Build-Installer.ps1 -Mode Source             # Run from source (sets up dev-temp)
 .\installer\Build-Installer.ps1 -Mode Source -Clean      # Reset dev-temp, run from source
 .\installer\Build-Installer.ps1 -Mode Build              # PyInstaller + Inno Setup (GPU)
@@ -84,8 +84,8 @@ uv run python -m dictator                                # Run from source (need
 - Use `_sanitize_error()` from `text_processor.py` when surfacing API errors.
 
 ### Config
-- `INSTALL_DIR` = `DICTATOR_HOME` env var (default: `C:\Program Files\dictat0r.AI`).
-- Source mode uses `dev-temp/` via `DICTATOR_HOME=dev-temp`.
+- `INSTALL_DIR` = `SPEAKEASY_HOME` env var (default: `C:\Program Files\SpeakEasy AI`).
+- Source mode uses `dev-temp/` via `SPEAKEASY_HOME=dev-temp`.
 - Settings file: `config/settings.json`. User presets: `config/presets/*.json`.
 - Five built-in presets are always available and cannot be deleted.
 
@@ -93,12 +93,12 @@ uv run python -m dictator                                # Run from source (need
 - `HotkeyManager.re_register()` is called on `WM_POWERBROADCAST` / `PBT_APMRESUMEAUTOMATIC` to restore keyboard hooks.
 
 ### Single-instance
-- Win32 named mutex `Global\Dictator0rAIMutex` prevents duplicate processes.
+- Win32 named mutex `Global\SpeakEasyAIMutex` prevents duplicate processes.
 
 ### Build variants
-- **GPU**: `dictator.spec` + `dictator-setup.iss` (CUDA, includes torchaudio)
-- **CPU**: `dictator-cpu.spec` + `dictator-cpu-setup.iss` (no CUDA, smaller)
-- `_build_variant.py` contains `VARIANT = "gpu"` by default. The CPU spec patches it to `"cpu"` at build time (and restores it after). `Install-Dictator-Source.ps1 -Variant CPU` also patches it for source installs.
+- **GPU**: `speakeasy.spec` + `speakeasy-setup.iss` (CUDA, includes torchaudio)
+- **CPU**: `speakeasy-cpu.spec` + `speakeasy-cpu-setup.iss` (no CUDA, smaller)
+- `_build_variant.py` contains `VARIANT = "gpu"` by default. The CPU spec patches it to `"cpu"` at build time (and restores it after). `Install-SpeakEasy-Source.ps1 -Variant CPU` also patches it for source installs.
 - At runtime, `config.py`, `gpu_monitor.py`, and `settings_dialog.py` branch on `VARIANT` to set device defaults, skip GPU metrics, and restrict the device dropdown.
 - Both installer variants share the same Inno Setup `AppId` — installing one replaces the other.
 - torch and torchaudio versions **must match** (same CUDA/CPU index in pyproject.toml)

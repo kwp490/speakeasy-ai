@@ -1,4 +1,4 @@
-"""Targeted tests for the Cohere transcription engine."""
+﻿"""Targeted tests for the Cohere transcription engine."""
 
 import unittest
 from types import SimpleNamespace
@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import numpy as np
 import torch
 
-from dictator.engine.cohere_transcribe import CohereTranscribeEngine
+from speakeasy.engine.cohere_transcribe import CohereTranscribeEngine
 
 
 class _FakeProcessor:
@@ -128,7 +128,7 @@ class TestChunkedTranscription(unittest.TestCase):
             "the quick brown fox",
             "brown fox jumps over the lazy dog",
         ], max_clip=30.0, overlap=5.0)
-        # 50s audio → should produce 2 chunks with 30s max / 5s overlap
+        # 50s audio â†’ should produce 2 chunks with 30s max / 5s overlap
         audio = np.zeros(int(50 * 16000), dtype=np.float32)
         result = engine._transcribe_impl(audio, "en")
         self.assertEqual(len(engine._processor.calls), 2)
@@ -157,7 +157,7 @@ class TestChunkedTranscription(unittest.TestCase):
         audio = np.zeros(int(50 * 16000), dtype=np.float32)
         engine._transcribe_impl(audio, "en")
         # The model.generate is called for each chunk; the last call's
-        # kwargs should have a token budget based on chunk duration ≤ 30s.
+        # kwargs should have a token budget based on chunk duration â‰¤ 30s.
         gen_kwargs = engine._model.generate_kwargs
         self.assertLessEqual(
             gen_kwargs["max_new_tokens"],
@@ -171,7 +171,7 @@ class TestChunkedTranscription(unittest.TestCase):
             "brown fox jumped over",
             "over the lazy dog",
         ], max_clip=30.0, overlap=5.0)
-        # 80s audio → 3 chunks with 30s max / 5s overlap
+        # 80s audio â†’ 3 chunks with 30s max / 5s overlap
         audio = np.zeros(int(80 * 16000), dtype=np.float32)
         result = engine._transcribe_impl(audio, "en")
         self.assertEqual(len(engine._processor.calls), 3)
@@ -185,7 +185,7 @@ class TestChunkedTranscription(unittest.TestCase):
             "first part of the sentence",
             "the sentence ends here",
         ], max_clip=30.0, overlap=5.0)
-        # 32s → just over boundary: chunk1=30s, chunk2=~7s
+        # 32s â†’ just over boundary: chunk1=30s, chunk2=~7s
         audio = np.zeros(int(32 * 16000), dtype=np.float32)
         result = engine._transcribe_impl(audio, "en")
         self.assertEqual(len(engine._processor.calls), 2)

@@ -1,11 +1,11 @@
-# Contributing to dictat0r.AI
+# Contributing to SpeakEasy AI
 
 ## Dev Setup
 
 ```bash
 # Clone and install all dependencies (including dev tools)
-git clone https://github.com/kwp490/dictat0rAI-v3.git
-cd dictat0rAI-v3
+git clone https://github.com/kwp490/SpeakEasyAI.git
+cd SpeakEasyAI
 uv sync --extra dev
 ```
 
@@ -18,13 +18,13 @@ uv run pytest
 ## Compile Check
 
 ```bash
-uv run python -m compileall dictator
+uv run python -m compileall speakeasy
 ```
 
 ## Verify Engine Availability
 
 ```bash
-uv run python -c "from dictator.engine import ENGINES; print(list(ENGINES.keys()))"
+uv run python -c "from speakeasy.engine import ENGINES; print(list(ENGINES.keys()))"
 ```
 
 ## Code Style
@@ -42,13 +42,13 @@ uv run python -c "from dictator.engine import ENGINES; print(list(ENGINES.keys()
 - **Professional Mode**: Text cleanup runs on a `Worker` thread via the OpenAI API (no GPU conflict). The API key is held in memory on `MainWindow._api_key` — it must **never** be logged, printed, or serialized to `settings.json`. Use `_sanitize_error()` from `text_processor.py` when handling API exceptions.
 - **Preset system**: Professional Mode uses `ProPreset` dataclass instances. Five built-in presets are always available; user presets are stored as JSON files in `config/presets/`. Built-in presets cannot be deleted.
 - **Sleep/wake recovery**: `HotkeyManager.re_register()` is called on `WM_POWERBROADCAST` / `PBT_APMRESUMEAUTOMATIC` to restore keyboard hooks invalidated during sleep.
-- **Single-instance guard**: A Windows named mutex (`Global\Dictator0rAIMutex`) prevents multiple processes.
+- **Single-instance guard**: A Windows named mutex (`Global\SpeakEasyAIMutex`) prevents multiple processes.
 
 ## Building the Binary
 
 ```bash
 uv sync --extra dev
-uv run pyinstaller dictator.spec
+uv run pyinstaller speakeasy.spec
 ```
 
 ## Building the Installer
@@ -57,8 +57,8 @@ After building the binary, compile the Inno Setup installer:
 
 ```bash
 # Requires Inno Setup 6.x — https://jrsoftware.org/isdl.php
-iscc installer\dictator-setup.iss
-# Output: installer/Output/dictator-AI-Setup-0.3.0.exe
+iscc installer\speakeasy-setup.iss
+# Output: installer/Output/SpeakEasy-AI-Setup-0.3.2.exe
 ```
 
 Or run the combined build script:
@@ -86,10 +86,10 @@ Pushing a `v*` tag triggers [.github/workflows/release.yml](.github/workflows/re
 
 ## Filing Issues
 
-Please use the [GitHub Issues](https://github.com/kwp490/dictat0rAI-v3/issues) page. Include:
+Please use the [GitHub Issues](https://github.com/kwp490/SpeakEasyAI/issues) page. Include:
 
-- dictat0r.AI version
+- SpeakEasy AI version
 - Windows version
 - GPU model and driver version
 - Steps to reproduce
-- Relevant log output from `logs/dictator.log`
+- Relevant log output from `logs/speakeasy.log`

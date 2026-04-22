@@ -1,7 +1,7 @@
 r"""
-Configuration persistence for dictat0r.AI.
+Configuration persistence for SpeakEasy AI.
 
-All data lives under the install directory (default C:\Program Files\dictat0r.AI).
+All data lives under the install directory (default C:\Program Files\SpeakEasy AI).
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from ._build_variant import VARIANT
 
 log = logging.getLogger(__name__)
 
-INSTALL_DIR = Path(os.environ.get("DICTATOR_HOME", r"C:\Program Files\dictat0r.AI"))
+INSTALL_DIR = Path(os.environ.get("SPEAKEASY_HOME", r"C:\Program Files\SpeakEasy AI"))
 
 DEFAULT_CONFIG_DIR = INSTALL_DIR / "config"
 DEFAULT_CONFIG_FILE = DEFAULT_CONFIG_DIR / "settings.json"
@@ -43,7 +43,6 @@ class Settings:
     auto_paste: bool = True
     hotkeys_enabled: bool = True
     hotkey_start: str = "ctrl+alt+p"
-    hotkey_stop: str = "ctrl+alt+l"
     hotkey_quit: str = "ctrl+alt+q"
     clear_logs_on_exit: bool = True
 

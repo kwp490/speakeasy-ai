@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "dictator"
+name = "speakeasy"
 version = "0.3.2"
-description = "dictat0r.AI — Native Windows voice-to-text with GPU acceleration — Cohere Transcribe engine"
+description = "SpeakEasy AI — Native Windows voice-to-text with GPU acceleration — Cohere Transcribe engine"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
@@ -38,7 +38,7 @@ dev = [
 ]
 
 [project.scripts]
-dictator = "dictator.__main__:main"
+speakeasy = "speakeasy.__main__:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

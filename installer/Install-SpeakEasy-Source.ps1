@@ -1,19 +1,19 @@
-<#
+﻿<#
 .SYNOPSIS
-    Install dictat0r.AI from source (developer/contributor path).
+    Install SpeakEasy AI from source (developer/contributor path).
 
 .DESCRIPTION
-    Copies the local dictat0r.AI source tree to the install directory, installs
+    Copies the local SpeakEasy AI source tree to the install directory, installs
     Python 3.11 and uv via winget, syncs all dependencies, downloads the Cohere
     Transcribe model, and creates a desktop shortcut.
 
     Use -Variant to select the installation type:
-      GPU  — full install with CUDA-accelerated PyTorch (requires NVIDIA GPU)
-      CPU  — lightweight install, CPU-only PyTorch (no GPU required)
+      GPU  â€” full install with CUDA-accelerated PyTorch (requires NVIDIA GPU)
+      CPU  â€” lightweight install, CPU-only PyTorch (no GPU required)
 
     If -Variant is not specified, the installer prompts interactively.
 
-    Requires Administrator elevation. Installs everything to C:\Program Files\dictat0r.AI\
+    Requires Administrator elevation. Installs everything to C:\Program Files\SpeakEasy AI\
     (binaries, models, config, logs, temp).
 
 .PARAMETER Variant
@@ -22,8 +22,8 @@
 .NOTES
     Run in an elevated PowerShell session from within the repo:
         Set-ExecutionPolicy Bypass -Scope Process -Force
-        .\installer\Install-Dictator-Source.ps1
-        .\installer\Install-Dictator-Source.ps1 -Variant CPU
+        .\installer\Install-SpeakEasy-Source.ps1
+        .\installer\Install-SpeakEasy-Source.ps1 -Variant CPU
 #>
 param(
     [ValidateSet('GPU', 'CPU')]
@@ -36,7 +36,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$InstallDir = "C:\Program Files\dictat0r.AI"
+$InstallDir = "C:\Program Files\SpeakEasy AI"
 $ModelsDir = "$InstallDir\models"
 $ConfigDir = "$InstallDir\config"
 $LogsDir   = "$InstallDir\logs"
@@ -157,7 +157,7 @@ function Assert-ValidInstallLayout {
     $requiredPaths = @(
         (Join-Path $InstallRoot "pyproject.toml"),
         (Join-Path $InstallRoot "download_model.py"),
-        (Join-Path $InstallRoot "dictator\__main__.py")
+        (Join-Path $InstallRoot "speakeasy\__main__.py")
     )
     foreach ($path in $requiredPaths) {
         if (-not (Test-Path $path)) {
@@ -166,15 +166,15 @@ function Assert-ValidInstallLayout {
     }
 }
 
-# ── Variant selection ─────────────────────────────────────────────────────────
+# â”€â”€ Variant selection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 if (-not $Variant) {
     Write-Host ""
-    Write-Host "  ┌─────────────────────────────────────────────────────────────────┐" -ForegroundColor Cyan
-    Write-Host "  │  SELECT INSTALLATION VARIANT                                   │" -ForegroundColor Cyan
-    Write-Host "  │                                                                │" -ForegroundColor Cyan
-    Write-Host "  │  [1] GPU  — CUDA-accelerated (requires NVIDIA GPU, ~6 GB VRAM)│" -ForegroundColor Cyan
-    Write-Host "  │  [2] CPU  — CPU-only, no GPU required (slower inference)       │" -ForegroundColor Cyan
-    Write-Host "  └─────────────────────────────────────────────────────────────────┘" -ForegroundColor Cyan
+    Write-Host "  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”" -ForegroundColor Cyan
+    Write-Host "  â”‚  SELECT INSTALLATION VARIANT                                   â”‚" -ForegroundColor Cyan
+    Write-Host "  â”‚                                                                â”‚" -ForegroundColor Cyan
+    Write-Host "  â”‚  [1] GPU  â€” CUDA-accelerated (requires NVIDIA GPU, ~6 GB VRAM)â”‚" -ForegroundColor Cyan
+    Write-Host "  â”‚  [2] CPU  â€” CPU-only, no GPU required (slower inference)       â”‚" -ForegroundColor Cyan
+    Write-Host "  â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜" -ForegroundColor Cyan
     Write-Host ""
     do {
         $choice = Read-Host "  Enter 1 for GPU or 2 for CPU (default: 1)"
@@ -186,7 +186,7 @@ Write-Host ""
 Write-Host "  Installation variant: $Variant" -ForegroundColor Cyan
 Write-Host ""
 
-# ── WIN-01: Check NVIDIA GPU ─────────────────────────────────────────────────
+# â”€â”€ WIN-01: Check NVIDIA GPU â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 if ($Variant -eq 'GPU') {
 Write-Step "Checking for NVIDIA GPU..."
 try {
@@ -201,20 +201,20 @@ try {
 }
 } # end GPU-only check
 
-# ── Antimalware notice ────────────────────────────────────────────────────────
+# â”€â”€ Antimalware notice â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Write-Host ""
-Write-Host "  ┌─────────────────────────────────────────────────────────────────┐" -ForegroundColor Yellow
-Write-Host "  │  ANTIMALWARE NOTICE                                            │" -ForegroundColor Yellow
-Write-Host "  │                                                                │" -ForegroundColor Yellow
-Write-Host "  │  This installer uses uv.exe (by Astral) to manage Python      │" -ForegroundColor Yellow
-Write-Host "  │  packages. Some antimalware tools (e.g. Malwarebytes) may      │" -ForegroundColor Yellow
-Write-Host "  │  flag or quarantine uv.exe as a false positive.                │" -ForegroundColor Yellow
-Write-Host "  │                                                                │" -ForegroundColor Yellow
-Write-Host "  │  If this happens, add uv.exe to your antimalware allow-list   │" -ForegroundColor Yellow
-Write-Host "  │  before continuing. uv is an open-source Python package       │" -ForegroundColor Yellow
-Write-Host "  │  manager (https://github.com/astral-sh/uv) installed via      │" -ForegroundColor Yellow
-Write-Host "  │  winget and is required to resolve and sync dependencies.      │" -ForegroundColor Yellow
-Write-Host "  └─────────────────────────────────────────────────────────────────┘" -ForegroundColor Yellow
+Write-Host "  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”" -ForegroundColor Yellow
+Write-Host "  â”‚  ANTIMALWARE NOTICE                                            â”‚" -ForegroundColor Yellow
+Write-Host "  â”‚                                                                â”‚" -ForegroundColor Yellow
+Write-Host "  â”‚  This installer uses uv.exe (by Astral) to manage Python      â”‚" -ForegroundColor Yellow
+Write-Host "  â”‚  packages. Some antimalware tools (e.g. Malwarebytes) may      â”‚" -ForegroundColor Yellow
+Write-Host "  â”‚  flag or quarantine uv.exe as a false positive.                â”‚" -ForegroundColor Yellow
+Write-Host "  â”‚                                                                â”‚" -ForegroundColor Yellow
+Write-Host "  â”‚  If this happens, add uv.exe to your antimalware allow-list   â”‚" -ForegroundColor Yellow
+Write-Host "  â”‚  before continuing. uv is an open-source Python package       â”‚" -ForegroundColor Yellow
+Write-Host "  â”‚  manager (https://github.com/astral-sh/uv) installed via      â”‚" -ForegroundColor Yellow
+Write-Host "  â”‚  winget and is required to resolve and sync dependencies.      â”‚" -ForegroundColor Yellow
+Write-Host "  â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "  The Cohere Transcribe model will be downloaded during installation."
 Write-Host "  A HuggingFace account with access to the gated model is required."
@@ -222,7 +222,7 @@ Write-Host "  Get your token at: https://huggingface.co/settings/tokens"
 Write-Host ""
 $HfToken = Read-Host "  Enter your HuggingFace API token (or press Enter to skip model download)"
 
-# ── Install uv ───────────────────────────────────────────────────────────────
+# â”€â”€ Install uv â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Write-Step "Checking for uv package manager..."
 if (Get-Command uv -ErrorAction SilentlyContinue) {
     Write-Already "uv already installed: $(uv --version)"
@@ -240,7 +240,7 @@ if (Get-Command uv -ErrorAction SilentlyContinue) {
 
 $env:UV_PYTHON_PREFERENCE = 'only-system'
 
-# ── Install Python 3.11 ─────────────────────────────────────────────────────
+# â”€â”€ Install Python 3.11 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Write-Step "Checking for Python 3.11..."
 $py311 = (Get-Command python3.11 -ErrorAction SilentlyContinue).Source
 if (-not $py311) {
@@ -265,8 +265,8 @@ if (-not $py311 -or -not (Test-Path $py311)) {
 }
 Write-Ok "Using Python: $py311"
 
-# ── Copy/sync source to install dir ──────────────────────────────────────────
-Write-Step "Setting up dictat0r.AI repository..."
+# â”€â”€ Copy/sync source to install dir â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+Write-Step "Setting up SpeakEasy AI repository..."
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoRoot = Split-Path -Parent $ScriptDir
 $RepoName = Split-Path -Leaf $RepoRoot
@@ -274,20 +274,20 @@ $NestedRepoDir = Join-Path $InstallDir $RepoName
 
 if (-not (Test-Path (Join-Path $RepoRoot "pyproject.toml"))) {
     Write-Host "  ERROR: Cannot find pyproject.toml in $RepoRoot" -ForegroundColor Red
-    Write-Host "  Run this script from its location inside the dictat0r.AI repository."
+    Write-Host "  Run this script from its location inside the SpeakEasy AI repository."
     exit 1
 }
 
 if ($RepoRoot -eq $InstallDir) {
-    Write-Already "Running from install directory — skipping copy"
+    Write-Already "Running from install directory â€” skipping copy"
 } elseif (Test-Path (Join-Path $InstallDir ".git")) {
-    Write-Warn "$InstallDir contains an old git clone — replacing with local source..."
+    Write-Warn "$InstallDir contains an old git clone â€” replacing with local source..."
     Remove-Item -Recurse -Force $InstallDir
     Write-Host "  Syncing local source contents from $RepoRoot..."
     Sync-SourceTree -SourceDir $RepoRoot -DestinationDir $InstallDir
     Write-Ok "Source installed to $InstallDir from local tree"
 } elseif (Test-Path $InstallDir) {
-    Write-Warn "$InstallDir exists — updating with local source..."
+    Write-Warn "$InstallDir exists â€” updating with local source..."
     if (Test-Path $NestedRepoDir) {
         Write-Warn "Removing stale nested repo copy at $NestedRepoDir..."
         Remove-Item -Recurse -Force $NestedRepoDir
@@ -303,7 +303,7 @@ if ($RepoRoot -eq $InstallDir) {
 Assert-ValidInstallLayout -InstallRoot $InstallDir -NestedRepoPath $NestedRepoDir
 Write-Ok "Install layout verified"
 
-# ── Verify & patch outdated files ─────────────────────────────────────────────
+# â”€â”€ Verify & patch outdated files â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 if ($RepoRoot -ne $InstallDir) {
     Write-Step "Checking for outdated files in $InstallDir..."
     $outdated = Update-OutdatedFiles -SourceDir $RepoRoot -DestDir $InstallDir
@@ -314,7 +314,7 @@ if ($RepoRoot -ne $InstallDir) {
     }
 }
 
-# ── Install dependencies ─────────────────────────────────────────────────────
+# â”€â”€ Install dependencies â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Write-Step "Syncing dependencies..."
 Write-Host "  Running uv sync (will skip already-installed packages)..."
 Push-Location $InstallDir
@@ -322,7 +322,7 @@ Invoke-NativeCommand 'uv sync' ([scriptblock]::Create("uv sync --python `"$py311
 Pop-Location
 Write-Ok "Dependencies synced"
 
-# ── Validate virtual environment and core imports ─────────────────────────────
+# â”€â”€ Validate virtual environment and core imports â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Write-Step "Validating virtual environment..."
 $venvPython = "$InstallDir\.venv\Scripts\python.exe"
 if (-not (Test-Path $venvPython)) {
@@ -363,7 +363,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 Write-Ok "Core imports verified"
 
-# ── Verify transformers + torch imports ───────────────────────────────────────
+# â”€â”€ Verify transformers + torch imports â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Write-Step "Verifying engine dependencies..."
 $prevPref = $ErrorActionPreference
 $ErrorActionPreference = 'Continue'
@@ -390,7 +390,7 @@ if ($LASTEXITCODE -ne 0) {
     Write-Ok "torch import OK"
 }
 
-# ── CPU variant: replace CUDA torch with CPU-only torch ──────────────────────
+# â”€â”€ CPU variant: replace CUDA torch with CPU-only torch â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 if ($Variant -eq 'CPU') {
     Write-Step "Installing CPU-only PyTorch (replacing CUDA build)..."
     Push-Location $InstallDir
@@ -401,7 +401,7 @@ if ($Variant -eq 'CPU') {
     Write-Ok "CPU-only PyTorch installed"
 }
 
-# ── Ensure PyTorch has CUDA support ───────────────────────────────────────────
+# â”€â”€ Ensure PyTorch has CUDA support â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 if ($Variant -eq 'GPU') {
 Write-Step "Verifying PyTorch CUDA support..."
 $prevPref = $ErrorActionPreference
@@ -409,7 +409,7 @@ $ErrorActionPreference = 'Continue'
 try { & $venvPython -c "import torch; assert torch.cuda.is_available()" 2>&1 | Out-Null }
 finally { $ErrorActionPreference = $prevPref }
 if ($LASTEXITCODE -ne 0) {
-    Write-Warn "PyTorch does not have CUDA support — reinstalling with CUDA 12.8..."
+    Write-Warn "PyTorch does not have CUDA support â€” reinstalling with CUDA 12.8..."
     Push-Location $InstallDir
     Invoke-NativeCommand 'Install torch+CUDA' {
         uv pip install --python .venv\Scripts\python.exe --index-url https://download.pytorch.org/whl/cu128 --upgrade --force-reinstall torch
@@ -427,7 +427,7 @@ $ErrorActionPreference = 'Continue'
 try { & $venvPython -c "import torch; torch.zeros(1, device='cuda')" 2>&1 | Out-Null }
 finally { $ErrorActionPreference = $prevPref }
 if ($LASTEXITCODE -ne 0) {
-    Write-Warn "PyTorch CUDA kernels failed — GPU arch may require a newer CUDA toolkit"
+    Write-Warn "PyTorch CUDA kernels failed â€” GPU arch may require a newer CUDA toolkit"
     Write-Host "  Reinstalling torch from cu128 index (includes Blackwell/sm_120 support)..."
     Push-Location $InstallDir
     Invoke-NativeCommand 'Upgrade torch for GPU arch' {
@@ -439,7 +439,7 @@ if ($LASTEXITCODE -ne 0) {
     try { & $venvPython -c "import torch; torch.zeros(1, device='cuda')" 2>&1 | Out-Null }
     finally { $ErrorActionPreference = $prevPref2 }
     if ($LASTEXITCODE -ne 0) {
-        Write-Warn "GPU kernel test still fails after torch reinstall — engines will fall back to CPU"
+        Write-Warn "GPU kernel test still fails after torch reinstall â€” engines will fall back to CPU"
     } else {
         Write-Ok "PyTorch GPU kernels working after reinstall"
     }
@@ -448,7 +448,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 } # end GPU-only CUDA verification
 
-# ── Verify huggingface-hub ────────────────────────────────────────────────────
+# â”€â”€ Verify huggingface-hub â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Write-Step "Checking huggingface-hub version..."
 $hfVer = & $venvPython -c "import huggingface_hub; print(huggingface_hub.__version__)" 2>$null
 if (-not $hfVer) {
@@ -461,7 +461,7 @@ if (-not $hfVer) {
     Write-Already "huggingface-hub $($hfVer.Trim()) is installed"
 }
 
-# ── Verify CUDA DLLs ─────────────────────────────────────────────────────────
+# â”€â”€ Verify CUDA DLLs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 if ($Variant -eq 'GPU') {
 Write-Step "Verifying CUDA runtime libraries..."
 try {
@@ -491,22 +491,22 @@ else: print('WARN: cublas DLL not found'); sys.exit(1)
     if ($LASTEXITCODE -eq 0) {
         Write-Ok "CUDA runtime libraries verified"
     } else {
-        Write-Warn "CUDA DLLs missing — GPU acceleration may fall back to CPU"
+        Write-Warn "CUDA DLLs missing â€” GPU acceleration may fall back to CPU"
     }
 } catch {
     Write-Warn "Could not verify CUDA DLLs: $_"
 }
 } # end GPU-only CUDA DLL verification
 
-# ── Download models ──────────────────────────────────────────────────────────
+# â”€â”€ Download models â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 foreach ($dir in @($ModelsDir, $ConfigDir, $LogsDir, $TempDir)) {
     if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
 }
 
-# ── Migrate existing data from old locations ──────────────────────────────────
+# â”€â”€ Migrate existing data from old locations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Write-Step "Checking for data to migrate from previous install..."
 
-$oldSettingsFile = "$env:APPDATA\dictat0r.AI\settings.json"
+$oldSettingsFile = "$env:APPDATA\SpeakEasy AI\settings.json"
 $newSettingsFile = Join-Path $ConfigDir "settings.json"
 if ((Test-Path $oldSettingsFile) -and -not (Test-Path $newSettingsFile)) {
     Copy-Item -Path $oldSettingsFile -Destination $newSettingsFile -Force
@@ -515,7 +515,7 @@ if ((Test-Path $oldSettingsFile) -and -not (Test-Path $newSettingsFile)) {
     Write-Already "No settings to migrate (already present or no old settings found)"
 }
 
-$oldModelsDir = "$env:LOCALAPPDATA\dictat0r.AI\models"
+$oldModelsDir = "$env:LOCALAPPDATA\SpeakEasy AI\models"
 if (Test-Path $oldModelsDir) {
     $migrated = 0
     foreach ($engineDir in (Get-ChildItem -Path $oldModelsDir -Directory)) {
@@ -534,8 +534,8 @@ if (Test-Path $oldModelsDir) {
     Write-Already "No old model directory found at $oldModelsDir"
 }
 
-$oldLogDir = "$env:APPDATA\dictat0r.AI"
-foreach ($logFile in @("dictator.log", "dictator.log.1", "dictator.log.2")) {
+$oldLogDir = "$env:APPDATA\SpeakEasy AI"
+foreach ($logFile in @("speakeasy.log", "speakeasy.log.1", "speakeasy.log.2")) {
     $oldLog = Join-Path $oldLogDir $logFile
     $newLog = Join-Path $LogsDir $logFile
     if ((Test-Path $oldLog) -and -not (Test-Path $newLog)) {
@@ -543,37 +543,37 @@ foreach ($logFile in @("dictator.log", "dictator.log.1", "dictator.log.2")) {
     }
 }
 
-# ── Download Cohere model ─────────────────────────────────────────────────────
+# â”€â”€ Download Cohere model â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Write-Step "Checking Cohere model (Cohere Transcribe 03-2026)..."
 $cohereDir = Join-Path $ModelsDir "cohere"
 if ((Test-Path (Join-Path $cohereDir "config.json"))) {
     Write-Already "Cohere model already present in $cohereDir"
 } elseif ([string]::IsNullOrWhiteSpace($HfToken)) {
-    Write-Warn "No HuggingFace token provided — skipping Cohere model download"
-    Write-Host "  Run later: cd '$InstallDir'; uv run dictator download-model --token YOUR_TOKEN --target-dir $ModelsDir" -ForegroundColor Yellow
+    Write-Warn "No HuggingFace token provided â€” skipping Cohere model download"
+    Write-Host "  Run later: cd '$InstallDir'; uv run speakeasy download-model --token YOUR_TOKEN --target-dir $ModelsDir" -ForegroundColor Yellow
 } else {
     Write-Host "  Downloading Cohere model (CohereLabs/cohere-transcribe-03-2026)..."
     Push-Location $InstallDir
-    Invoke-StreamingCommand 'Cohere model download' { uv run dictator download-model --token $HfToken --target-dir $ModelsDir }
+    Invoke-StreamingCommand 'Cohere model download' { uv run speakeasy download-model --token $HfToken --target-dir $ModelsDir }
     Pop-Location
     Write-Ok "Cohere model downloaded to $cohereDir"
 }
 
-# ── Patch build variant for CPU source installs ──────────────────────────────
+# â”€â”€ Patch build variant for CPU source installs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 if ($Variant -eq 'CPU') {
     Write-Step "Patching build variant to CPU..."
-    $variantFile = Join-Path $InstallDir "dictator\_build_variant.py"
+    $variantFile = Join-Path $InstallDir "speakeasy\_build_variant.py"
     if (Test-Path $variantFile) {
         $content = Get-Content $variantFile -Raw
         $patched = $content -replace 'VARIANT\s*=\s*"gpu"', 'VARIANT = "cpu"'
         [System.IO.File]::WriteAllText($variantFile, $patched, (New-Object System.Text.UTF8Encoding $false))
         Write-Ok "Build variant set to 'cpu' in $variantFile"
     } else {
-        Write-Warn "_build_variant.py not found at $variantFile — device defaults may use GPU"
+        Write-Warn "_build_variant.py not found at $variantFile â€” device defaults may use GPU"
     }
 }
 
-# ── Write default engine to settings ─────────────────────────────────────────
+# â”€â”€ Write default engine to settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Write-Step "Configuring default engine..."
 $settingsFile = Join-Path $ConfigDir "settings.json"
 $cfg = $null
@@ -602,7 +602,7 @@ $jsonText = $cfg | ConvertTo-Json -Depth 10
 [System.IO.File]::WriteAllText($settingsFile, $jsonText, (New-Object System.Text.UTF8Encoding $false))
 Write-Ok "Default engine set to '$defaultEngine', device set to '$defaultDevice' in $settingsFile"
 
-# ── Set permissions (current user gets Modify on install dir) ────────────────
+# â”€â”€ Set permissions (current user gets Modify on install dir) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Write-Step "Checking directory permissions..."
 $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
 $acl = Get-Acl $InstallDir
@@ -626,25 +626,25 @@ if ($existingRule) {
     Write-Ok "Granted $currentUser Modify access on $InstallDir"
 }
 
-# ── Create desktop shortcut ──────────────────────────────────────────────────
+# â”€â”€ Create desktop shortcut â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Write-Step "Creating desktop shortcut..."
 $desktopPath = [Environment]::GetFolderPath('Desktop')
-$shortcutPath = Join-Path $desktopPath "dictat0r.AI.lnk"
+$shortcutPath = Join-Path $desktopPath "SpeakEasy AI.lnk"
 if (Test-Path $shortcutPath) {
     Write-Already "Desktop shortcut already exists"
 } else {
     $shell = New-Object -ComObject WScript.Shell
     $shortcut = $shell.CreateShortcut($shortcutPath)
     $shortcut.TargetPath = "$InstallDir\.venv\Scripts\pythonw.exe"
-    $shortcut.Arguments = "-m dictator"
+    $shortcut.Arguments = "-m speakeasy"
     $shortcut.WorkingDirectory = $InstallDir
-    $shortcut.Description = "dictat0r.AI — Voice to Text"
+    $shortcut.Description = "SpeakEasy AI â€” Voice to Text"
     $shortcut.Save()
     [System.Runtime.InteropServices.Marshal]::ReleaseComObject($shell) | Out-Null
     Write-Ok "Desktop shortcut created at $shortcutPath"
 }
 
-# ── Windows Defender exclusions ───────────────────────────────────────────────
+# â”€â”€ Windows Defender exclusions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Write-Step "Configuring Windows Defender exclusions..."
 try {
     Add-MpPreference -ExclusionPath $InstallDir -ErrorAction Stop
@@ -653,12 +653,12 @@ try {
     Write-Warn "Could not add Defender exclusion: $_"
 }
 
-# ── Summary ───────────────────────────────────────────────────────────────────
+# â”€â”€ Summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 $variantLabel = if ($Variant -eq 'CPU') { 'CPU-only (no GPU required)' } else { 'GPU (CUDA-accelerated)' }
 Write-Host ""
-Write-Host "  ══════════════════════════════════════════════════════════" -ForegroundColor Green
-Write-Host "  dictat0r.AI has been installed successfully!" -ForegroundColor Green
-Write-Host "  ══════════════════════════════════════════════════════════" -ForegroundColor Green
+Write-Host "  â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•" -ForegroundColor Green
+Write-Host "  SpeakEasy AI has been installed successfully!" -ForegroundColor Green
+Write-Host "  â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Variant:        $variantLabel"
 Write-Host "  Install dir:    $InstallDir"
@@ -670,10 +670,11 @@ Write-Host "  Engine:         Cohere Transcribe"
 Write-Host "  Device:         $defaultDevice"
 Write-Host ""
 Write-Host "  To launch:      Double-click the desktop shortcut or run:"
-Write-Host "    cd '$InstallDir'; uv run dictator"
+Write-Host "    cd '$InstallDir'; uv run speakeasy"
 Write-Host ""
 Write-Host "  Default hotkeys:"
 Write-Host "    Ctrl+Alt+P   Start recording"
 Write-Host "    Ctrl+Alt+L   Stop recording & transcribe"
 Write-Host "    Ctrl+Alt+Q   Quit application"
 Write-Host ""
+

@@ -1,4 +1,4 @@
-"""Tests for the model downloader module."""
+﻿"""Tests for the model downloader module."""
 
 import os
 import tempfile
@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from dictator.model_downloader import (
+from speakeasy.model_downloader import (
     COHERE_REPO_ID,
     EXIT_AUTH_REQUIRED,
     EXIT_FAILURE,
@@ -166,17 +166,17 @@ class TestCohereSetupLauncher(unittest.TestCase):
     """Installed-model setup launch helpers must pass the expected arguments."""
 
     def test_launch_raises_when_setup_script_missing(self):
-        with patch("dictator.model_downloader.find_cohere_setup_script", return_value=None):
+        with patch("speakeasy.model_downloader.find_cohere_setup_script", return_value=None):
             with self.assertRaises(FileNotFoundError):
                 launch_cohere_setup_script()
 
     def test_launch_passes_target_dir_to_powershell(self):
-        script = Path(r"C:\Program Files\dictat0r.AI\cohere-model-setup.ps1")
-        target_dir = r"C:\Users\kenpe\AppData\Local\dictat0r.AI\models"
+        script = Path(r"C:\Program Files\SpeakEasy AI\cohere-model-setup.ps1")
+        target_dir = r"C:\Users\kenpe\AppData\Local\SpeakEasy AI\models"
 
-        with patch("dictator.model_downloader.find_cohere_setup_script", return_value=script):
+        with patch("speakeasy.model_downloader.find_cohere_setup_script", return_value=script):
             with patch(
-                "dictator.model_downloader.ctypes.windll.shell32.ShellExecuteW",
+                "speakeasy.model_downloader.ctypes.windll.shell32.ShellExecuteW",
                 return_value=42,
             ) as shell_execute:
                 rc = launch_cohere_setup_script(target_dir=target_dir)
@@ -190,3 +190,5 @@ class TestCohereSetupLauncher(unittest.TestCase):
             str(script.parent),
             1,
         )
+
+

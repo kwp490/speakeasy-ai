@@ -1,11 +1,11 @@
-"""Tests for the SpeechEngine abstract base class contract."""
+﻿"""Tests for the SpeechEngine abstract base class contract."""
 
 import unittest
 from unittest.mock import MagicMock
 
 import numpy as np
 
-from dictator.engine.base import SpeechEngine
+from speakeasy.engine.base import SpeechEngine
 
 
 class _StubEngine(SpeechEngine):
@@ -82,12 +82,13 @@ class TestEngineRegistryHasEngines(unittest.TestCase):
     """The engine registry must contain at least one engine."""
 
     def test_engines_dict_not_empty(self):
-        from dictator.engine import ENGINES
+        from speakeasy.engine import ENGINES
         self.assertIsInstance(ENGINES, dict)
         self.assertIn("cohere", ENGINES)
         self.assertEqual(len(ENGINES), 1)
 
     def test_cohere_is_speech_engine(self):
-        from dictator.engine import ENGINES
-        from dictator.engine.base import SpeechEngine
+        from speakeasy.engine import ENGINES
+        from speakeasy.engine.base import SpeechEngine
         self.assertTrue(issubclass(ENGINES["cohere"], SpeechEngine))
+

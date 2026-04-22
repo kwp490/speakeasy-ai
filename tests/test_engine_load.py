@@ -1,11 +1,11 @@
-"""Tests for engine loading, model file detection, and registry."""
+﻿"""Tests for engine loading, model file detection, and registry."""
 
 import os
 import tempfile
 import unittest
 from pathlib import Path
 
-from dictator.engine import ENGINES, _model_files_exist, get_available_engines
+from speakeasy.engine import ENGINES, _model_files_exist, get_available_engines
 
 
 class TestEngineRegistry(unittest.TestCase):
@@ -76,3 +76,4 @@ if __name__ == "__main__":
 
 import os
 import tempfile
+

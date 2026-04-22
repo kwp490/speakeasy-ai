@@ -50,7 +50,7 @@ class CohereTranscribeEngine(SpeechEngine):
             os.path.join(cohere_dir, "config.json")
         ):
             log.info("Cohere model not found at %s — downloading…", cohere_dir)
-            from dictator.model_downloader import download_model, EXIT_SUCCESS, EXIT_AUTH_REQUIRED
+            from speakeasy.model_downloader import download_model, EXIT_SUCCESS, EXIT_AUTH_REQUIRED
             rc = download_model("cohere", model_path)
             if rc == EXIT_AUTH_REQUIRED:
                 raise RuntimeError(

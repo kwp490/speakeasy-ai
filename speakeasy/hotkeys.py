@@ -19,8 +19,7 @@ class HotkeyManager(QObject):
     """Registers/unregisters global hotkeys and emits Qt signals on activation."""
 
     # Emitted from the keyboard hook thread; Qt auto-queues to the main thread.
-    start_requested = Signal()
-    stop_requested = Signal()
+    toggle_requested = Signal()
     quit_requested = Signal()
 
     def __init__(self, parent: Optional[QObject] = None):
@@ -28,7 +27,6 @@ class HotkeyManager(QObject):
         self._enabled = False
         self._hooks: list = []
         self._hotkey_start: Optional[str] = None
-        self._hotkey_stop: Optional[str] = None
         self._hotkey_quit: Optional[str] = None
 
     # ── Public API ────────────────────────────────────────────────────────────
@@ -36,27 +34,23 @@ class HotkeyManager(QObject):
     def register(
         self,
         hotkey_start: str = "ctrl+alt+p",
-        hotkey_stop: str = "ctrl+alt+l",
         hotkey_quit: str = "ctrl+alt+q",
     ) -> None:
-        """Register the three dictation hotkeys.  Safe to call repeatedly."""
+        """Register the dictation hotkeys.  Safe to call repeatedly."""
         import keyboard
 
         self._hotkey_start = hotkey_start
-        self._hotkey_stop = hotkey_stop
         self._hotkey_quit = hotkey_quit
         self.unregister()
         try:
             self._hooks = [
-                keyboard.add_hotkey(hotkey_start, self._on_start, suppress=False),
-                keyboard.add_hotkey(hotkey_stop, self._on_stop, suppress=False),
+                keyboard.add_hotkey(hotkey_start, self._on_toggle, suppress=False),
                 keyboard.add_hotkey(hotkey_quit, self._on_quit, suppress=False),
             ]
             self._enabled = True
             log.info(
-                "Hotkeys registered: start=%s  stop=%s  quit=%s",
+                "Hotkeys registered: record=%s  quit=%s",
                 hotkey_start,
-                hotkey_stop,
                 hotkey_quit,
             )
         except Exception:
@@ -89,7 +83,7 @@ class HotkeyManager(QObject):
         """
         if self._hotkey_start is not None:
             log.info("Re-registering hotkeys after system resume")
-            self.register(self._hotkey_start, self._hotkey_stop, self._hotkey_quit)
+            self.register(self._hotkey_start, self._hotkey_quit)
 
     @property
     def enabled(self) -> bool:
@@ -97,11 +91,8 @@ class HotkeyManager(QObject):
 
     # ── Callbacks (run on keyboard hook thread) ──────────────────────────────
 
-    def _on_start(self) -> None:
-        self.start_requested.emit()
-
-    def _on_stop(self) -> None:
-        self.stop_requested.emit()
+    def _on_toggle(self) -> None:
+        self.toggle_requested.emit()
 
     def _on_quit(self) -> None:
         self.quit_requested.emit()

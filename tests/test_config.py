@@ -1,9 +1,9 @@
-import json
+﻿import json
 import tempfile
 import unittest
 from pathlib import Path
 
-from dictator.config import Settings
+from speakeasy.config import Settings
 
 
 class SettingsConfigTests(unittest.TestCase):
@@ -175,3 +175,4 @@ class SettingsValidationTests(unittest.TestCase):
             p.write_text(json.dumps({"engine": "invalid_eng"}), encoding="utf-8")
             s = Settings.load(p)
             self.assertEqual(s.engine, "cohere")
+

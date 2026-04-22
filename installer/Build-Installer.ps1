@@ -1,24 +1,24 @@
-<#
+﻿<#
 .SYNOPSIS
-    Build, test, and launch dictat0r.AI -- all-in-one build and development tool.
+    Build, test, and launch SpeakEasy AI -- all-in-one build and development tool.
 
 .DESCRIPTION
     Three operating modes:
 
       Build (default when -Mode Build is specified)
         PyInstaller binary + Inno Setup installer. Two-step build:
-          1. pyinstaller dictator.spec  -> dist/dictator/
-          2. iscc installer/dictator-setup.iss -> installer/Output/dictator-AI-Setup-<version>.exe
+          1. pyinstaller speakeasy.spec  -> dist/speakeasy/
+          2. iscc installer/speakeasy-setup.iss -> installer/Output/SpeakEasy-AI-Setup-<version>.exe
 
       Release
         Full release cycle: syncs dependencies, runs the test suite, builds
         the installer (PyInstaller + Inno Setup), silently uninstalls the old
         version (keeping models), silently installs the new build, validates
-        the frozen bundle, and launches dictator.exe.  Requires admin --
+        the frozen bundle, and launches speakeasy.exe.  Requires admin --
         auto-elevates if needed.
 
       Source
-        Runs directly from source with DICTATOR_HOME pointed at a dev-temp
+        Runs directly from source with SPEAKEASY_HOME pointed at a dev-temp
         folder.  No system changes -- the installed release build is untouched.
 
       Install
@@ -47,8 +47,8 @@
 
 .PARAMETER Variant
     Build variant: GPU (default), CPU, or Both.
-      - GPU:  builds with dictator.spec + dictator-setup.iss (CUDA-enabled)
-      - CPU:  builds with dictator-cpu.spec + dictator-cpu-setup.iss (no CUDA, smaller)
+      - GPU:  builds with speakeasy.spec + speakeasy-setup.iss (CUDA-enabled)
+      - CPU:  builds with speakeasy-cpu.spec + speakeasy-cpu-setup.iss (no CUDA, smaller)
       - Both: builds GPU first, then CPU sequentially
 
 .PARAMETER SkipTests
@@ -110,6 +110,23 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# -- Suppress Windows "Location is not available" dialogs -----------------------
+# SEM_FAILCRITICALERRORS (0x0001) + SEM_NOOPENFILEERRORBOX (0x8000) tells the
+# kernel to return errors to the calling process instead of popping a dialog
+# when an inaccessible drive (e.g. a removed D:\ volume) is touched during
+# junction setup, torch swap, or PyInstaller I/O.
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class WinErrorMode {
+    [DllImport("kernel32.dll")]
+    public static extern uint SetErrorMode(uint uMode);
+}
+'@ -ErrorAction SilentlyContinue
+try {
+    [WinErrorMode]::SetErrorMode(0x8001) | Out-Null   # SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX
+} catch { }
+
 # -- Resolve repo root (works whether invoked from repo root or installer/) ----
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 if ((Split-Path -Leaf $scriptDir) -eq 'installer') {
@@ -144,7 +161,7 @@ function Exit-Script([int]$code = 1) {
 if (-not $Mode) {
     Write-Host ""
     Write-Host "  =================================================" -ForegroundColor Cyan
-    Write-Host "       dictat0r.AI -- Build & Test Launcher         " -ForegroundColor Cyan
+    Write-Host "       SpeakEasy AI -- Build & Test Launcher         " -ForegroundColor Cyan
     Write-Host "  =================================================" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "  BUILD" -ForegroundColor White
@@ -201,13 +218,13 @@ if (-not $Mode) {
 Write-Step "Mode: $Mode | Variant: $Variant"
 
 
-# ── RAM disk drive letter (change this if R: conflicts) ───────────────────────
+# â”€â”€ RAM disk drive letter (change this if R: conflicts) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 $RamDiskDrive = 'R:'
 
-# ── RAM disk junction helper ──────────────────────────────────────────────────
+# â”€â”€ RAM disk junction helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Creates NTFS junctions from build/ and dist/ to folders on a RAM disk so
 # PyInstaller I/O (thousands of files in torch/transformers) hits ~100ns RAM
-# latency instead of ~6µs NVMe latency.  All downstream consumers (Inno Setup,
+# latency instead of ~6Âµs NVMe latency.  All downstream consumers (Inno Setup,
 # tests) see the same repo-relative paths.
 function Initialize-RamDiskJunctions {
     if (-not (Test-Path $RamDiskDrive)) {
@@ -225,11 +242,11 @@ function Initialize-RamDiskJunctions {
             return
         }
 
-        Write-Info "Provisioning 10 GB RAM disk on ${RamDiskDrive} via AIM Toolkit..."
+        Write-Info "Provisioning 12 GB RAM disk on ${RamDiskDrive} via AIM Toolkit..."
         $prevPref = $ErrorActionPreference
         $ErrorActionPreference = 'Continue'
         try {
-            & $aimLl -a -t vm -s 10G -m $RamDiskDrive -p "/fs:ntfs /q /y" 2>&1 |
+            & $aimLl -a -t vm -s 12G -m $RamDiskDrive -p "/fs:ntfs /q /y" 2>&1 |
                 ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
         } finally {
             $ErrorActionPreference = $prevPref
@@ -239,10 +256,10 @@ function Initialize-RamDiskJunctions {
             Write-Warn "Failed to create RAM disk. Using local build/dist directories."
             return
         }
-        Write-Ok "RAM disk provisioned on $RamDiskDrive (10 GB, NTFS)"
+        Write-Ok "RAM disk provisioned on $RamDiskDrive (12 GB, NTFS)"
     } else {
         # Verify the existing drive is writable
-        $testFile = Join-Path $RamDiskDrive '.dictator-write-test'
+        $testFile = Join-Path $RamDiskDrive '.speakeasy-write-test'
         try {
             [IO.File]::WriteAllText($testFile, 'ok')
             Remove-Item $testFile -Force -ErrorAction SilentlyContinue
@@ -250,7 +267,55 @@ function Initialize-RamDiskJunctions {
             Write-Warn "RAM disk $RamDiskDrive exists but is not writable. Using local build/dist directories."
             return
         }
-        $freeGB = [math]::Round((Get-PSDrive ($RamDiskDrive.TrimEnd(':'))).Free / 1GB, 1)
+        $drive     = Get-PSDrive ($RamDiskDrive.TrimEnd(':'))
+        $totalGB   = [math]::Round(($drive.Free + $drive.Used) / 1GB, 1)
+        $freeGB    = [math]::Round($drive.Free / 1GB, 1)
+
+        # Auto-extend if disk is undersized (e.g. provisioned at old 10 GB size)
+        if ($totalGB -lt 11) {
+            $aimLl = if (Test-Path "$env:ProgramFiles\AIM Toolkit\aim_ll.exe") {
+                "$env:ProgramFiles\AIM Toolkit\aim_ll.exe"
+            } else {
+                (Get-Command aim_ll -ErrorAction SilentlyContinue).Source
+            }
+            if ($aimLl) {
+                Write-Info "RAM disk is ${totalGB} GB; attempting to extend to 12 GB..."
+                # aim_ll -e needs the 6-digit SCSI unit number; obtain it from -l output
+                $listOut = & $aimLl -l -m $RamDiskDrive 2>&1 | Out-String
+                $unitNum = ([regex]::Match($listOut, '(?m)^\s*([0-9a-fA-F]{6})\b')).Groups[1].Value
+                if ($unitNum) {
+                    $prevPref = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+                    try {
+                        & $aimLl -e -s 12G -u $unitNum 2>&1 |
+                            ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
+                    } finally { $ErrorActionPreference = $prevPref }
+                    # Extend the NTFS volume to fill the enlarged virtual disk
+                    $letter  = $RamDiskDrive.TrimEnd(':')
+                    $diskNum = (Get-Partition | Where-Object { $_.DriveLetter -eq $letter }).DiskNumber
+                    $partNum = (Get-Partition | Where-Object { $_.DriveLetter -eq $letter }).PartitionNumber
+                    if ($null -ne $diskNum) {
+                        "select disk $diskNum`nselect partition $partNum`nextend" |
+                            diskpart | Out-Null
+                    }
+                    $drive   = Get-PSDrive ($RamDiskDrive.TrimEnd(':'))
+                    $totalGB = [math]::Round(($drive.Free + $drive.Used) / 1GB, 1)
+                    $freeGB  = [math]::Round($drive.Free / 1GB, 1)
+                    if ($totalGB -ge 11) {
+                        Write-Ok "RAM disk extended to ${totalGB} GB (${freeGB} GB free)"
+                    } else {
+                        Write-Warn "Extend may not have taken effect yet (${totalGB} GB total). " +
+                                   "Use RamDiskUI.exe to resize $RamDiskDrive to 12 GB manually."
+                    }
+                } else {
+                    Write-Warn "Could not determine device unit for $RamDiskDrive. " +
+                               "Use RamDiskUI.exe to resize to 12 GB manually."
+                }
+            } else {
+                Write-Warn "RAM disk $RamDiskDrive is ${totalGB} GB (target: 12 GB). " +
+                           "Use RamDiskUI.exe to resize manually."
+            }
+        }
+
         if ($freeGB -lt 5) {
             Write-Warn "RAM disk $RamDiskDrive has only ${freeGB} GB free (recommend >= 5 GB)"
         }
@@ -258,8 +323,8 @@ function Initialize-RamDiskJunctions {
     }
 
     foreach ($pair in @(
-        @{ Local = 'build'; Remote = "$RamDiskDrive\dictator-build" },
-        @{ Local = 'dist';  Remote = "$RamDiskDrive\dictator-dist" }
+        @{ Local = 'build'; Remote = "$RamDiskDrive\speakeasy-build" },
+        @{ Local = 'dist';  Remote = "$RamDiskDrive\speakeasy-dist" }
     )) {
         $local  = $pair.Local
         $remote = $pair.Remote
@@ -300,18 +365,18 @@ function Initialize-RamDiskJunctions {
     }
 }
 
-# ── Source-hash helper ────────────────────────────────────────────────────────
+# â”€â”€ Source-hash helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Computes a hash over all files that affect the PyInstaller output so we can
 # skip the (slow) PyInstaller step when nothing has changed.
 function Get-SourceHash {
     param([string]$VariantTag = 'gpu')
     $hashInput = @()
     # Python source + spec + project config
-    $files = @(Get-ChildItem -Path "dictator" -Recurse -Include "*.py" -File) +
-             @(Get-Item "dictator.spec") +
+    $files = @(Get-ChildItem -Path "speakeasy" -Recurse -Include "*.py" -File) +
+             @(Get-Item "speakeasy.spec") +
              @(Get-Item "pyproject.toml")
-    if ($VariantTag -eq 'cpu' -and (Test-Path 'dictator-cpu.spec')) {
-        $files += @(Get-Item 'dictator-cpu.spec')
+    if ($VariantTag -eq 'cpu' -and (Test-Path 'speakeasy-cpu.spec')) {
+        $files += @(Get-Item 'speakeasy-cpu.spec')
     }
     foreach ($f in $files | Sort-Object FullName) {
         $h = (Get-FileHash -Path $f.FullName -Algorithm SHA256).Hash
@@ -325,8 +390,8 @@ function Get-SourceHash {
     return [BitConverter]::ToString($sha.ComputeHash($bytes)).Replace('-', '')
 }
 
-$HashFile = "build\.dictator-build-hash"
-$CpuHashFile = "build\.dictator-cpu-build-hash"
+$HashFile = "build\.speakeasy-build-hash"
+$CpuHashFile = "build\.speakeasy-cpu-build-hash"
 
 
 # ==============================================================================
@@ -354,16 +419,16 @@ Write-Ok "pyproject.toml found"
 
 # 1c. Verify spec files (Build and Release modes)
 if ($Mode -in @('Build', 'Release')) {
-    if (-not (Test-Path "dictator.spec")) {
-        Write-Err "dictator.spec not found. Run this script from the repository root."
+    if (-not (Test-Path "speakeasy.spec")) {
+        Write-Err "speakeasy.spec not found. Run this script from the repository root."
         Exit-Script 1
     }
-    Write-Ok "dictator.spec found"
-    if ($Variant -in @('CPU', 'Both') -and -not (Test-Path 'dictator-cpu.spec')) {
-        Write-Err "dictator-cpu.spec not found. Required for CPU variant."
+    Write-Ok "speakeasy.spec found"
+    if ($Variant -in @('CPU', 'Both') -and -not (Test-Path 'speakeasy-cpu.spec')) {
+        Write-Err "speakeasy-cpu.spec not found. Required for CPU variant."
         Exit-Script 1
     }
-    if ($Variant -in @('CPU', 'Both')) { Write-Ok 'dictator-cpu.spec found' }
+    if ($Variant -in @('CPU', 'Both')) { Write-Ok 'speakeasy-cpu.spec found' }
 }
 
 # 1d. Find iscc.exe (Build and Release modes only)
@@ -445,7 +510,7 @@ sys.exit(0 if ok else 1)
 } # end pre-flight checks (skipped for Install mode)
 
 
-# ── RAM disk junctions (Build and Release modes) ─────────────────────────────
+# â”€â”€ RAM disk junctions (Build and Release modes) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Always use the RAM disk for builds.  If the drive is not mounted, attempt to
 # provision one via AIM Toolkit (aim_ll).  The junction helper falls back
 # gracefully to local build/dist directories if the drive cannot be created.
@@ -463,9 +528,12 @@ if ($Mode -ne 'Install') {
 
 # In Release mode, pytest runs before the fresh PyInstaller build. Remove any
 # stale dist/ tree first so frozen-build dist assertions do not read an old bundle.
-if ($Mode -eq 'Release' -and (Test-Path "dist\dictator")) {
-    Remove-Item 'dist\dictator' -Recurse -Force
-    Write-Ok "Removed stale dist\dictator before pre-build tests"
+if ($Mode -eq 'Release') {
+    $staleDistDir = if ($Variant -eq 'CPU') { 'dist\speakeasy-cpu' } else { 'dist\speakeasy' }
+    if (Test-Path $staleDistDir) {
+        Remove-Item $staleDistDir -Recurse -Force
+        Write-Ok "Removed stale $staleDistDir before pre-build tests"
+    }
 }
 
 if ($SkipTests) {
@@ -506,17 +574,17 @@ if ($SkipTests) {
 function Build-Variant {
     param(
         [Parameter(Mandatory)] [string]$VariantTag,    # 'gpu' or 'cpu'
-        [Parameter(Mandatory)] [string]$SpecFile,      # e.g. 'dictator.spec'
-        [Parameter(Mandatory)] [string]$IssFile,       # e.g. 'installer\dictator-setup.iss'
-        [Parameter(Mandatory)] [string]$DistDir,       # e.g. 'dist\dictator'
-        [Parameter(Mandatory)] [string]$HashFilePath,  # e.g. 'build\.dictator-build-hash'
-        [Parameter(Mandatory)] [string]$InstallerGlob  # e.g. 'dictator-AI-Setup-*.exe'
+        [Parameter(Mandatory)] [string]$SpecFile,      # e.g. 'speakeasy.spec'
+        [Parameter(Mandatory)] [string]$IssFile,       # e.g. 'installer\speakeasy-setup.iss'
+        [Parameter(Mandatory)] [string]$DistDir,       # e.g. 'dist\speakeasy'
+        [Parameter(Mandatory)] [string]$HashFilePath,  # e.g. 'build\.speakeasy-build-hash'
+        [Parameter(Mandatory)] [string]$InstallerGlob  # e.g. 'SpeakEasy-AI-Setup-*.exe'
     )
 
-    $distExe = "$DistDir\dictator.exe"
+    $distExe = "$DistDir\speakeasy.exe"
     $label = $VariantTag.ToUpper()
 
-    # ── Step 1: PyInstaller ──────────────────────────────────────────────
+    # â”€â”€ Step 1: PyInstaller â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if ($InnoOnly) {
         Write-Step "[$label] Skipping PyInstaller (-InnoOnly flag set)"
         if (-not (Test-Path $distExe)) {
@@ -540,7 +608,7 @@ function Build-Variant {
             Write-Step "[$label] PyInstaller skipped (source unchanged since last build)"
             Write-Ok "Using cached binary: $distExe"
         } else {
-            # ── CPU variant: install CPU-only torch before PyInstaller ───
+            # â”€â”€ CPU variant: install CPU-only torch before PyInstaller â”€â”€â”€
             # GPU torch DLLs (shm.dll, torch.dll, torch_python.dll) have
             # hard imports of torch_cuda.dll. Stripping that file from the
             # bundle causes WinError 126 at runtime. CPU torch wheels ship
@@ -568,7 +636,7 @@ function Build-Variant {
                 Write-Ok "CPU torch installed ($cpuCheck)"
             }
 
-            Write-Step "[$label] Building dictat0r.AI binary with PyInstaller..."
+            Write-Step "[$label] Building SpeakEasy AI binary with PyInstaller..."
 
             $pyiArgs = @("pyinstaller", $SpecFile, "--noconfirm")
             if ($Clean) { $pyiArgs += "--clean" }
@@ -589,7 +657,7 @@ function Build-Variant {
             }
             $pyiExit = $LASTEXITCODE
 
-            # ── Restore GPU torch after CPU build ────────────────────────
+            # â”€â”€ Restore GPU torch after CPU build â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             if ($swappedTorch) {
                 Write-Step "[$label] Restoring GPU torch..."
                 $prevPref = $ErrorActionPreference
@@ -624,7 +692,7 @@ function Build-Variant {
         }
     }
 
-    # ── Step 2: Inno Setup ───────────────────────────────────────────────
+    # â”€â”€ Step 2: Inno Setup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     Write-Step "[$label] Building installer with Inno Setup..."
 
     Write-Host "  Using: $($iscc)"
@@ -674,19 +742,19 @@ if ($Mode -eq 'Build') {
         if ($v -eq 'gpu') {
             Build-Variant `
                 -VariantTag  'gpu' `
-                -SpecFile    'dictator.spec' `
-                -IssFile     'installer\dictator-setup.iss' `
-                -DistDir     'dist\dictator' `
+                -SpecFile    'speakeasy.spec' `
+                -IssFile     'installer\speakeasy-setup.iss' `
+                -DistDir     'dist\speakeasy' `
                 -HashFilePath $HashFile `
-                -InstallerGlob 'dictator-AI-Setup-*.exe'
+                -InstallerGlob 'SpeakEasy-AI-Setup-*.exe'
         } else {
             Build-Variant `
                 -VariantTag  'cpu' `
-                -SpecFile    'dictator-cpu.spec' `
-                -IssFile     'installer\dictator-cpu-setup.iss' `
-                -DistDir     'dist\dictator-cpu' `
+                -SpecFile    'speakeasy-cpu.spec' `
+                -IssFile     'installer\speakeasy-cpu-setup.iss' `
+                -DistDir     'dist\speakeasy-cpu' `
                 -HashFilePath $CpuHashFile `
-                -InstallerGlob 'dictator-AI-CPU-Setup-*.exe'
+                -InstallerGlob 'SpeakEasy-AI-CPU-Setup-*.exe'
         }
     }
 
@@ -740,11 +808,11 @@ if ($Mode -eq 'Release') {
 
     $buildArgs = @{
         VariantTag    = if ($Variant -eq 'CPU') { 'cpu' } else { 'gpu' }
-        SpecFile      = if ($Variant -eq 'CPU') { 'dictator-cpu.spec' } else { 'dictator.spec' }
-        IssFile       = if ($Variant -eq 'CPU') { 'installer\dictator-cpu-setup.iss' } else { 'installer\dictator-setup.iss' }
-        DistDir       = if ($Variant -eq 'CPU') { 'dist\dictator-cpu' } else { 'dist\dictator' }
+        SpecFile      = if ($Variant -eq 'CPU') { 'speakeasy-cpu.spec' } else { 'speakeasy.spec' }
+        IssFile       = if ($Variant -eq 'CPU') { 'installer\speakeasy-cpu-setup.iss' } else { 'installer\speakeasy-setup.iss' }
+        DistDir       = if ($Variant -eq 'CPU') { 'dist\speakeasy-cpu' } else { 'dist\speakeasy' }
         HashFilePath  = if ($Variant -eq 'CPU') { $CpuHashFile } else { $HashFile }
-        InstallerGlob = if ($Variant -eq 'CPU') { 'dictator-AI-CPU-Setup-*.exe' } else { 'dictator-AI-Setup-*.exe' }
+        InstallerGlob = if ($Variant -eq 'CPU') { 'SpeakEasy-AI-CPU-Setup-*.exe' } else { 'SpeakEasy-AI-Setup-*.exe' }
     }
     Build-Variant @buildArgs
     Write-Ok "Installer built successfully"
@@ -766,7 +834,7 @@ if ($Mode -eq 'Release') {
     Write-Ok "Fresh frozen build validated"
 
     # -- Silent uninstall ------------------------------------------------------
-    Write-Step "Checking for existing dictat0r.AI installation..."
+    Write-Step "Checking for existing SpeakEasy AI installation..."
 
     $uninstallKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{A1B2C3D4-5E6F-7A8B-9C0D-E1F2A3B4C5D6}_is1'
     # Also check WOW6432Node for 32-bit Inno Setup entries
@@ -805,14 +873,14 @@ if ($Mode -eq 'Release') {
             Write-Ok "Old version uninstalled (models preserved)"
         }
     } else {
-        Write-Info "No existing dictat0r.AI installation found -- skipping uninstall."
+        Write-Info "No existing SpeakEasy AI installation found -- skipping uninstall."
     }
 
     # -- Post-uninstall cleanup (belt-and-suspenders) --------------------------
     # The old embedded uninstaller may lack the cleanup rules added in this
     # version, so explicitly nuke config/logs/temp to guarantee a clean slate.
     # Models are always preserved.
-    $installDir = 'C:\Program Files\dictat0r.AI'
+    $installDir = 'C:\Program Files\SpeakEasy AI'
     Write-Step "Cleaning leftover settings/logs/temp from previous install..."
     foreach ($sub in @('config', 'logs', 'temp')) {
         $dir = Join-Path $installDir $sub
@@ -825,7 +893,7 @@ if ($Mode -eq 'Release') {
     # -- Silent install --------------------------------------------------------
     Write-Step "Installing new build..."
 
-    $setupPattern = if ($Variant -eq 'CPU') { 'dictator-AI-CPU-Setup-*.exe' } else { 'dictator-AI-Setup-*.exe' }
+    $setupPattern = if ($Variant -eq 'CPU') { 'SpeakEasy-AI-CPU-Setup-*.exe' } else { 'SpeakEasy-AI-Setup-*.exe' }
     $setupExe = Get-ChildItem "installer\Output\$setupPattern" -ErrorAction SilentlyContinue |
         Sort-Object LastWriteTime -Descending |
         Select-Object -First 1
@@ -851,12 +919,12 @@ if ($Mode -eq 'Release') {
         Write-Err "Installer failed (exit code $($proc.ExitCode))."
         Exit-Script 1
     }
-    Write-Ok "dictat0r.AI installed successfully"
+    Write-Ok "SpeakEasy AI installed successfully"
 
     # -- Verify installed bundle matches freshly-built dist --------------------
-    $distSubdir = if ($Variant -eq 'CPU') { 'dist\dictator-cpu' } else { 'dist\dictator' }
+    $distSubdir = if ($Variant -eq 'CPU') { 'dist\speakeasy-cpu' } else { 'dist\speakeasy' }
     $distTorchLib = Join-Path $RepoRoot "$distSubdir\_internal\torch\lib"
-    $installedTorchLib = 'C:\Program Files\dictat0r.AI\_internal\torch\lib'
+    $installedTorchLib = 'C:\Program Files\SpeakEasy AI\_internal\torch\lib'
     Write-Step "Verifying installed torch DLL bundle..."
 
     $distTorchDlls = Get-RelativeFileList $distTorchLib
@@ -885,9 +953,9 @@ if ($Mode -eq 'Release') {
     Write-Ok "Installed torch DLL bundle matches dist"
 
     # -- Verify Cohere model is present ----------------------------------------
-    $installedCohereConfig = 'C:\Program Files\dictat0r.AI\models\cohere\config.json'
+    $installedCohereConfig = 'C:\Program Files\SpeakEasy AI\models\cohere\config.json'
     if (Test-Path $installedCohereConfig) {
-        Write-Ok "Cohere model found at C:\Program Files\dictat0r.AI\models\cohere"
+        Write-Ok "Cohere model found at C:\Program Files\SpeakEasy AI\models\cohere"
     } else {
         Write-Warn "Cohere model NOT found at $installedCohereConfig"
         Write-Info "The installer may not have downloaded the model (gated repo)."
@@ -895,22 +963,22 @@ if ($Mode -eq 'Release') {
     }
 
     # -- Launch ----------------------------------------------------------------
-    Write-Step "Launching dictat0r.AI (installed build)..."
+    Write-Step "Launching SpeakEasy AI (installed build)..."
 
-    $installedExe = 'C:\Program Files\dictat0r.AI\dictator.exe'
+    $installedExe = 'C:\Program Files\SpeakEasy AI\speakeasy.exe'
     if (-not (Test-Path $installedExe)) {
-        Write-Err "dictator.exe not found at $installedExe"
+        Write-Err "speakeasy.exe not found at $installedExe"
         Exit-Script 1
     }
 
     # Stop any running instance so the new launch does not hit the
     # "Another instance is already running" single-instance guard.
-    Get-Process -Name 'dictator' -ErrorAction SilentlyContinue |
+    Get-Process -Name 'speakeasy' -ErrorAction SilentlyContinue |
         Stop-Process -Force -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 2
 
     Start-Process $installedExe
-    Write-Ok "dictat0r.AI launched from $installedExe"
+    Write-Ok "SpeakEasy AI launched from $installedExe"
 
     Write-Host ""
     Write-Host "  =========================================" -ForegroundColor Green
@@ -955,7 +1023,7 @@ if ($Mode -eq 'Install') {
     Write-Ok "Running as Administrator"
 
     # -- Find installer --------------------------------------------------------
-    $setupPattern = if ($Variant -eq 'CPU') { 'dictator-AI-CPU-Setup-*.exe' } else { 'dictator-AI-Setup-*.exe' }
+    $setupPattern = if ($Variant -eq 'CPU') { 'SpeakEasy-AI-CPU-Setup-*.exe' } else { 'SpeakEasy-AI-Setup-*.exe' }
     $setupExe = Get-ChildItem "installer\Output\$setupPattern" -ErrorAction SilentlyContinue |
         Sort-Object LastWriteTime -Descending |
         Select-Object -First 1
@@ -969,7 +1037,7 @@ if ($Mode -eq 'Install') {
     Write-Ok "Found installer: $($setupExe.Name) ($([math]::Round($setupExe.Length / 1MB, 1)) MB)"
 
     # -- Silent uninstall ------------------------------------------------------
-    Write-Step "Checking for existing dictat0r.AI installation..."
+    Write-Step "Checking for existing SpeakEasy AI installation..."
 
     $uninstallKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{A1B2C3D4-5E6F-7A8B-9C0D-E1F2A3B4C5D6}_is1'
     $uninstallKeyWow = 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{A1B2C3D4-5E6F-7A8B-9C0D-E1F2A3B4C5D6}_is1'
@@ -1006,11 +1074,11 @@ if ($Mode -eq 'Install') {
             Write-Ok "Old version uninstalled (models preserved)"
         }
     } else {
-        Write-Info "No existing dictat0r.AI installation found -- skipping uninstall."
+        Write-Info "No existing SpeakEasy AI installation found -- skipping uninstall."
     }
 
     # -- Post-uninstall cleanup ------------------------------------------------
-    $installDir = 'C:\Program Files\dictat0r.AI'
+    $installDir = 'C:\Program Files\SpeakEasy AI'
     Write-Step "Cleaning leftover settings/logs/temp..."
     foreach ($sub in @('config', 'logs', 'temp')) {
         $dir = Join-Path $installDir $sub
@@ -1037,23 +1105,23 @@ if ($Mode -eq 'Install') {
         Write-Err "Installer failed (exit code $($proc.ExitCode))."
         Exit-Script 1
     }
-    Write-Ok "dictat0r.AI installed successfully"
+    Write-Ok "SpeakEasy AI installed successfully"
 
     # -- Launch ----------------------------------------------------------------
-    Write-Step "Launching dictat0r.AI..."
+    Write-Step "Launching SpeakEasy AI..."
 
-    $installedExe = 'C:\Program Files\dictat0r.AI\dictator.exe'
+    $installedExe = 'C:\Program Files\SpeakEasy AI\speakeasy.exe'
     if (-not (Test-Path $installedExe)) {
-        Write-Err "dictator.exe not found at $installedExe"
+        Write-Err "speakeasy.exe not found at $installedExe"
         Exit-Script 1
     }
 
-    Get-Process -Name 'dictator' -ErrorAction SilentlyContinue |
+    Get-Process -Name 'speakeasy' -ErrorAction SilentlyContinue |
         Stop-Process -Force -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 2
 
     Start-Process $installedExe
-    Write-Ok "dictat0r.AI launched from $installedExe"
+    Write-Ok "SpeakEasy AI launched from $installedExe"
 
     Write-Host ""
     Write-Host "  =========================================" -ForegroundColor Green
@@ -1110,7 +1178,7 @@ if ($Mode -eq 'Source') {
 
     # -- Model access via directory junction -----------------------------------
     $devModels = Join-Path $devTemp 'models'
-    $installedModels = 'C:\Program Files\dictat0r.AI\models'
+    $installedModels = 'C:\Program Files\SpeakEasy AI\models'
     $repoModels = Join-Path $RepoRoot 'models'
 
     if (Test-Path $devModels) {
@@ -1145,27 +1213,27 @@ if ($Mode -eq 'Source') {
         Write-Warn "Cohere model NOT found at $devModels\cohere\config.json"
         Write-Info "The app will prompt for model setup on launch."
         Write-Info "To download manually:"
-        Write-Info "  uv run python -m dictator download-model --token <HF_TOKEN>"
+        Write-Info "  uv run python -m speakeasy download-model --token <HF_TOKEN>"
     }
 
     # -- Launch from source ----------------------------------------------------
-    Write-Step "Launching dictat0r.AI from source..."
-    Write-Info "DICTATOR_HOME = $devTemp"
+    Write-Step "Launching SpeakEasy AI from source..."
+    Write-Info "SPEAKEASY_HOME = $devTemp"
     Write-Info "Config, logs, and temp files go to dev-temp/ (not Program Files)."
     Write-Host ""
 
-    $env:DICTATOR_HOME = $devTemp
+    $env:SPEAKEASY_HOME = $devTemp
 
     $prevPref = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     try {
-        uv run python -m dictator 2>&1 | ForEach-Object { Write-Host "  $_" }
+        uv run python -m speakeasy 2>&1 | ForEach-Object { Write-Host "  $_" }
     } finally {
         $ErrorActionPreference = $prevPref
     }
 
     # Clean up env var so it doesn't leak to the rest of the session
-    Remove-Item Env:\DICTATOR_HOME -ErrorAction SilentlyContinue
+    Remove-Item Env:\SPEAKEASY_HOME -ErrorAction SilentlyContinue
 
     Write-Host ""
     Write-Host "  =========================================" -ForegroundColor Green
@@ -1176,3 +1244,4 @@ if ($Mode -eq 'Source') {
 
     Exit-Script 0
 }
+

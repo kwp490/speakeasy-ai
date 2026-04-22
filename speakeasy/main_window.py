@@ -1,5 +1,5 @@
 """
-Main application window for dictat0r.AI.
+Main application window for SpeakEasy AI.
 
 Integrates model engine lifecycle, audio recording, transcription,
 clipboard, hotkeys, and history into a single cohesive window.
@@ -20,6 +20,7 @@ from PySide6.QtCore import QObject, QThreadPool, QTimer, Qt, Signal, Slot
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -249,7 +250,7 @@ class MainWindow(QMainWindow):
             log.warning("Professional Mode enabled but no API key configured")
 
         # ── Build UI ─────────────────────────────────────────────────────────
-        self.setWindowTitle("dictat0r.AI — Voice to Text")
+        self.setWindowTitle("SpeakEasy AI — Voice to Text")
         self.setMinimumSize(640, 700)
         self.resize(720, 820)
         self._build_ui()
@@ -286,17 +287,11 @@ class MainWindow(QMainWindow):
 
         # ── Transcription section (dominant) ─────────────────────────────────
         btn_row = QHBoxLayout()
-        self._btn_start = QPushButton("\U0001f3a4  Start Recording  (Ctrl+Alt+P)")
-        self._btn_start.setMinimumHeight(52)
-        self._btn_start.setStyleSheet("font-size: 14px;")
-        self._btn_start.clicked.connect(self._on_start_recording)
-        self._btn_stop = QPushButton("\u23f9  Stop && Transcribe  (Ctrl+Alt+L)")
-        self._btn_stop.setMinimumHeight(52)
-        self._btn_stop.setStyleSheet("font-size: 14px;")
-        self._btn_stop.setEnabled(False)
-        self._btn_stop.clicked.connect(self._on_stop_and_transcribe)
-        btn_row.addWidget(self._btn_start)
-        btn_row.addWidget(self._btn_stop)
+        self._btn_record = QPushButton("\U0001f3a4  Start Recording  (Ctrl+Alt+P)")
+        self._btn_record.setMinimumHeight(52)
+        self._btn_record.setStyleSheet("font-size: 14px;")
+        self._btn_record.clicked.connect(self._on_toggle_recording)
+        btn_row.addWidget(self._btn_record)
         root.addLayout(btn_row)
 
         # ── Status indicators (model + dictation) ────────────────────────────
@@ -319,10 +314,16 @@ class MainWindow(QMainWindow):
         self._chk_professional = QCheckBox("Professional Mode")
         self._chk_professional.setChecked(self.settings.professional_mode)
         self._chk_professional.toggled.connect(self._on_professional_toggled)
+        self._combo_pro_preset = QComboBox()
+        self._combo_pro_preset.setMaximumWidth(180)
+        self._combo_pro_preset.setEnabled(self.settings.professional_mode)
+        self._populate_pro_preset_combo()
+        self._combo_pro_preset.currentTextChanged.connect(self._on_pro_preset_quick_select)
         toggle_row.addWidget(self._chk_auto_copy)
         toggle_row.addWidget(self._chk_auto_paste)
         toggle_row.addWidget(self._chk_hotkeys)
         toggle_row.addWidget(self._chk_professional)
+        toggle_row.addWidget(self._combo_pro_preset)
         toggle_row.addStretch()
         root.addLayout(toggle_row)
 
@@ -365,7 +366,8 @@ class MainWindow(QMainWindow):
         eg_layout = QVBoxLayout()
 
         status_row = QHBoxLayout()
-        self._lbl_engine = QLabel("Engine: Cohere Transcribe")
+        _init_device = "GPU" if self.settings.device == "cuda" else "CPU"
+        self._lbl_engine = QLabel(f"Engine: Cohere Transcribe  \u00b7  Device: {_init_device}")
         self._lbl_model_status = QLabel("Status: Not loaded")
         self._lbl_engine.setFont(QFont("Segoe UI", 10))
         self._lbl_model_status.setFont(QFont("Segoe UI", 10))
@@ -478,8 +480,7 @@ class MainWindow(QMainWindow):
 
         # Professional mode status
         if self.settings.professional_mode and self._text_processor is not None:
-            preset_name = self.settings.pro_active_preset
-            pro_text = f'Active ({preset_name})'
+            pro_text = self.settings.pro_active_preset
             pro_color = COLOR_SUCCESS
         elif self.settings.professional_mode:
             pro_text = 'No API Key'
@@ -488,8 +489,10 @@ class MainWindow(QMainWindow):
             pro_text = 'Inactive'
             pro_color = COLOR_NEUTRAL
 
+        device_label = "GPU" if self.settings.device == "cuda" else "CPU"
+        engine_display = self._engine.name.capitalize()
         self._lbl_global_status.setText(
-            f'Model: <span style="color:{m_color}"><b>{self._model_status.value}</b></span>'
+            f'{engine_display} ({device_label}): <span style="color:{m_color}"><b>{self._model_status.value}</b></span>'
             f'  \u00b7  '
             f'Dictation: <span style="color:{d_color}"><b>{self._dictation_state.value}</b></span>'
             f'  \u00b7  '
@@ -535,13 +538,11 @@ class MainWindow(QMainWindow):
     # ═════════════════════════════════════════════════════════════════════════
 
     def _connect_hotkeys(self) -> None:
-        self._hotkey_mgr.start_requested.connect(self._on_start_recording)
-        self._hotkey_mgr.stop_requested.connect(self._on_stop_and_transcribe)
+        self._hotkey_mgr.toggle_requested.connect(self._on_toggle_recording)
         self._hotkey_mgr.quit_requested.connect(self.close)
         if self.settings.hotkeys_enabled:
             self._hotkey_mgr.register(
                 self.settings.hotkey_start,
-                self.settings.hotkey_stop,
                 self.settings.hotkey_quit,
             )
 
@@ -550,7 +551,6 @@ class MainWindow(QMainWindow):
         if enabled:
             self._hotkey_mgr.register(
                 self.settings.hotkey_start,
-                self.settings.hotkey_stop,
                 self.settings.hotkey_quit,
             )
             self._log_ui("Global hotkeys enabled")
@@ -599,7 +599,8 @@ class MainWindow(QMainWindow):
         self._loading_timer.stop()
         elapsed = time.time() - self._model_load_start
         self._set_model_status(ModelStatus.READY)
-        self._lbl_engine.setText(f"Engine: {self._engine.name}")
+        device_label = "GPU" if self.settings.device == "cuda" else "CPU"
+        self._lbl_engine.setText(f"Engine: {self._engine.name}  \u00b7  Device: {device_label}")
         self._log_ui(f"Model loaded in {elapsed:.1f}s")
 
     @Slot(str)
@@ -719,12 +720,24 @@ class MainWindow(QMainWindow):
         self._refresh_dictation_buttons()
 
     def _refresh_dictation_buttons(self) -> None:
-        """Enable/disable Start & Stop buttons based on dictation + model state."""
+        """Enable/disable and relabel the record toggle button based on dictation + model state."""
         is_idle = self._dictation_state == DictationState.IDLE
         is_recording = self._dictation_state == DictationState.RECORDING
         model_ready = self._model_status in (ModelStatus.READY, ModelStatus.VALIDATED)
-        self._btn_start.setEnabled(is_idle and model_ready)
-        self._btn_stop.setEnabled(is_recording)
+        if is_recording:
+            self._btn_record.setEnabled(True)
+            self._btn_record.setText("\u23f9  Stop && Transcribe  (Ctrl+Alt+P)")
+        else:
+            self._btn_record.setEnabled(is_idle and model_ready)
+            self._btn_record.setText("\U0001f3a4  Start Recording  (Ctrl+Alt+P)")
+
+    @Slot()
+    def _on_toggle_recording(self) -> None:
+        """Single hotkey/button handler — start when idle, stop when recording."""
+        if self._dictation_state == DictationState.IDLE:
+            self._on_start_recording()
+        elif self._dictation_state == DictationState.RECORDING:
+            self._on_stop_and_transcribe()
 
     @Slot()
     def _on_start_recording(self) -> None:
@@ -1075,7 +1088,7 @@ class MainWindow(QMainWindow):
     def _delete_log_files(self) -> None:
         """Remove the rotating log files from disk."""
         log_dir = DEFAULT_LOG_DIR
-        for pattern in ("dictator.log", "dictator.log.*"):
+        for pattern in ("speakeasy.log", "speakeasy.log.*"):
             for f in log_dir.glob(pattern):
                 try:
                     f.unlink()
@@ -1209,7 +1222,7 @@ class MainWindow(QMainWindow):
             return False
 
         # In source (non-frozen) mode, download directly — no elevation needed
-        # since dev-temp/ is user-writable and dictator.exe doesn't exist.
+        # since dev-temp/ is user-writable and speakeasy.exe doesn't exist.
         if not getattr(sys, "frozen", False):
             return self._run_source_model_download()
 
@@ -1258,7 +1271,7 @@ class MainWindow(QMainWindow):
                 "Download Failed",
                 "The model download failed. Check the log for details.\n\n"
                 "You can retry from Settings or run:\n"
-                "  uv run python -m dictator download-model --token <TOKEN>",
+                "  uv run python -m speakeasy download-model --token <TOKEN>",
             )
             return False
 
@@ -1287,7 +1300,7 @@ class MainWindow(QMainWindow):
                 "Setup Script Missing",
                 f"Could not find cohere-model-setup.ps1 in:\n"
                 f"{searched_paths}\n\n"
-                "Please reinstall dictat0r.AI or run the Cohere setup manually.",
+                "Please reinstall SpeakEasy AI or run the Cohere setup manually.",
             )
             return False
         except Exception as exc:
@@ -1344,7 +1357,7 @@ class MainWindow(QMainWindow):
 
         # Hotkeys
         if s.hotkeys_enabled:
-            self._hotkey_mgr.register(s.hotkey_start, s.hotkey_stop, s.hotkey_quit)
+            self._hotkey_mgr.register(s.hotkey_start, s.hotkey_quit)
         else:
             self._hotkey_mgr.unregister()
         self._chk_hotkeys.setChecked(s.hotkeys_enabled)
@@ -1407,7 +1420,37 @@ class MainWindow(QMainWindow):
             self._chk_professional.blockSignals(True)
             self._chk_professional.setChecked(self.settings.professional_mode)
             self._chk_professional.blockSignals(False)
+            self._combo_pro_preset.setEnabled(self.settings.professional_mode)
+            self._populate_pro_preset_combo()
             self._update_global_status()
+
+    def _populate_pro_preset_combo(self) -> None:
+        """Populate the preset quick-select combo from the current presets dict."""
+        self._combo_pro_preset.blockSignals(True)
+        self._combo_pro_preset.clear()
+        for name in sorted(self._pro_presets.keys()):
+            self._combo_pro_preset.addItem(name)
+        idx = self._combo_pro_preset.findText(self.settings.pro_active_preset)
+        if idx >= 0:
+            self._combo_pro_preset.setCurrentIndex(idx)
+        self._combo_pro_preset.blockSignals(False)
+
+    @Slot(str)
+    def _on_pro_preset_quick_select(self, name: str) -> None:
+        """Handle preset selection from the quick-select combo."""
+        if not name or name == self.settings.pro_active_preset:
+            return
+        preset = self._pro_presets.get(name)
+        if preset is None:
+            return
+        self.settings.pro_active_preset = name
+        self._active_preset = preset
+        if self.settings.professional_mode and self._api_key and self._text_processor is not None:
+            model = preset.model or "gpt-5.4-mini"
+            self._text_processor = TextProcessor(api_key=self._api_key, model=model)
+            self._log_ui(f'Pro preset changed to "{name}"')
+        self.settings.save()
+        self._update_global_status()
 
     def _on_professional_toggled(self, checked: bool) -> None:
         """Handle the Professional Mode checkbox in the main toggle row."""
@@ -1457,6 +1500,7 @@ class MainWindow(QMainWindow):
             self.settings.professional_mode = False
             self._text_processor = None
             self._log_ui("Professional Mode disabled")
+        self._combo_pro_preset.setEnabled(self.settings.professional_mode)
         self.settings.save()
         self._update_global_status()
 

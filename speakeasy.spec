@@ -1,37 +1,20 @@
 # -*- mode: python ; coding: utf-8 -*-
 """
-PyInstaller spec for dictat0r.AI — CPU-only variant (no CUDA/GPU).
+PyInstaller spec for SpeakEasy AI — Cohere Transcribe engine (transformers/torch).
 
-Build: pyinstaller dictator-cpu.spec
-Output: dist/dictator-cpu/dictator.exe (onedir)
-
-This spec produces a smaller bundle by excluding CUDA libraries,
-nvidia-ml-py, and torchaudio.  The _build_variant.py file is patched
-to VARIANT = "cpu" before Analysis so runtime code adapts automatically.
+Build: pyinstaller speakeasy.spec
+Output: dist/speakeasy/speakeasy.exe (onedir)
 """
-
-import os as _os
 
 from PyInstaller.utils.hooks import collect_dynamic_libs, collect_data_files
 
 block_cipher = None
 
-# ── Patch _build_variant.py to "cpu" for this build ─────────────────────────
-_variant_path = _os.path.join('dictator', '_build_variant.py')
-_variant_backup = None
-if _os.path.isfile(_variant_path):
-    with open(_variant_path, 'r', encoding='utf-8') as _f:
-        _variant_backup = _f.read()
-    with open(_variant_path, 'w', encoding='utf-8') as _f:
-        _f.write('"""Build variant flag — patched at build time by the CPU PyInstaller spec."""\n\n'
-                 'VARIANT = "cpu"  # "gpu" (default) or "cpu"\n')
-
 # Collect PortAudio DLL from sounddevice
 binaries = collect_dynamic_libs('sounddevice')
 
-# CPU build: skip collect_dynamic_libs('torch') — no CUDA DLLs needed.
-# torch's core DLLs (torch_cpu.dll etc.) are collected automatically by
-# PyInstaller's import analysis.
+# Collect all native libs from torch so shm.dll and its deps are bundled
+binaries += collect_dynamic_libs('torch')
 
 # transformers>=5.5 scans transformers/models on disk from __init__.py,
 # and Auto* helpers reach cross-model packages like encoder_decoder during
@@ -53,11 +36,11 @@ for _subpkg, _kwargs in (
         pass
 
 a = Analysis(
-    ['dictator/__main__.py'],
+    ['speakeasy/__main__.py'],
     pathex=[],
     binaries=binaries,
     datas=datas + [
-        ('dictator/assets', 'dictator/assets'),
+        ('speakeasy/assets', 'speakeasy/assets'),
     ],
     hiddenimports=[
         'PySide6.QtWidgets',
@@ -68,13 +51,13 @@ a = Analysis(
         '_soundfile_data',
         'numpy',
         'keyboard',
-        # pynvml excluded — CPU build does not monitor GPU
+        'pynvml',
         'transformers',
         'accelerate',
         'torch',
         'torch._strobelight',
         'torch._strobelight.compile_time_profiler',
-        # torchaudio excluded — not used at runtime
+        'torchaudio',
         'huggingface_hub',
         'sentencepiece',
         'protobuf',
@@ -84,12 +67,8 @@ a = Analysis(
     ],
     hookspath=['hooks'],
     hooksconfig={},
-    runtime_hooks=['dictator/_runtime_hook_dll.py'],
+    runtime_hooks=['speakeasy/_runtime_hook_dll.py'],
     excludes=[
-        # GPU / NVIDIA packages not used in CPU build
-        'pynvml',
-        'nvidia',
-        'torchaudio',
         # GUI / image libraries not used
         'tkinter',
         'matplotlib',
@@ -161,68 +140,36 @@ _STRIP_PATTERNS = [
     _re.compile(r'protoc\.exe', _re.I),
 ]
 
-# ── CUDA / NVIDIA binary-only patterns ────────────────────────────────────
-# Applied only to a.binaries so that Python stub modules like
-# torch.backends.cudnn (needed by torch.backends.__init__) survive in a.pure.
-_CUDA_BINARY_PATTERNS = [
-    _re.compile(r'cublas', _re.I),
-    _re.compile(r'cublasLt', _re.I),
-    _re.compile(r'cudart', _re.I),
-    _re.compile(r'cudnn', _re.I),
-    _re.compile(r'cufft', _re.I),
-    _re.compile(r'curand', _re.I),
-    _re.compile(r'cusolver', _re.I),
-    _re.compile(r'cusparse', _re.I),
-    _re.compile(r'nccl', _re.I),
-    _re.compile(r'nvrtc', _re.I),
-    _re.compile(r'nvJitLink', _re.I),
-    _re.compile(r'nvperf', _re.I),
-    _re.compile(r'nvToolsExt', _re.I),
-    _re.compile(r'nvidia[\\/]', _re.I),
-    _re.compile(r'torch[\\/]lib[\\/]cu', _re.I),
-    _re.compile(r'c10_cuda', _re.I),
-    _re.compile(r'torch_cuda', _re.I),
-    _re.compile(r'caffe2_nvrtc', _re.I),
-]
-
 def _entry_name(entry):
     return entry[0] if isinstance(entry, tuple) else str(entry)
 
 
-def _should_keep(entry, patterns=_STRIP_PATTERNS):
+def _should_keep(entry):
     name = _entry_name(entry)
-    return not any(p.search(name) for p in patterns)
+    return not any(p.search(name) for p in _STRIP_PATTERNS)
 
 
-def _filter_entries(entries, patterns=_STRIP_PATTERNS):
-    return [entry for entry in entries if _should_keep(entry, patterns)]
+def _filter_entries(entries):
+    return [entry for entry in entries if _should_keep(entry)]
 
 
 a.pure = _filter_entries(a.pure)
-a.binaries = _filter_entries(_filter_entries(a.binaries), _CUDA_BINARY_PATTERNS)
+a.binaries = _filter_entries(a.binaries)
 a.datas = _filter_entries(a.datas)
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
-
-# ── Restore _build_variant.py after PYZ compilation ─────────────────────────
-# Must happen AFTER PYZ() which compiles Python modules into bytecode.
-# Restoring earlier (e.g. after Analysis) causes PYZ to compile the restored
-# "gpu" source instead of the patched "cpu" source.
-if _variant_backup is not None:
-    with open(_variant_path, 'w', encoding='utf-8') as _f:
-        _f.write(_variant_backup)
 
 exe = EXE(
     pyz,
     a.scripts,
     [],
     exclude_binaries=True,
-    name='dictator',
+    name='speakeasy',
     debug=False,
     bootloader_ignore_signals=False,
-    strip=True,
+    strip=False,
     upx=False,
-    icon='dictator/assets/app.ico',
+    icon='speakeasy/assets/app.ico',
     console=False,
     disable_windowed_traceback=False,
 )
@@ -232,8 +179,8 @@ coll = COLLECT(
     a.binaries,
     a.zipfiles,
     a.datas,
-    strip=True,
+    strip=False,
     upx=False,
     upx_exclude=[],
-    name='dictator-cpu',
+    name='speakeasy',
 )

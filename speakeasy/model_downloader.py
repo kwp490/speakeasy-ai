@@ -13,7 +13,7 @@ from pathlib import Path
 
 log = logging.getLogger(__name__)
 
-# ── Exit codes (also used by installer/dictator-setup.iss) ───────────────────
+# ── Exit codes (also used by installer/speakeasy-setup.iss) ───────────────────
 EXIT_SUCCESS = 0
 EXIT_FAILURE = 1
 EXIT_AUTH_REQUIRED = 2  # gated repo — anonymous access denied
@@ -29,7 +29,7 @@ _ENGINE_REPO_MAP = {
 
 def get_cohere_setup_script_candidates() -> tuple[Path, Path]:
     """Return the install and source locations for the setup script."""
-    from dictator.config import INSTALL_DIR
+    from speakeasy.config import INSTALL_DIR
 
     repo_root = Path(__file__).resolve().parent.parent
     return (
@@ -79,6 +79,12 @@ def launch_cohere_setup_script(
 
 def _is_gated_repo_error(exc: Exception) -> bool:
     """Return True if *exc* indicates a gated/restricted HuggingFace repo."""
+    try:
+        from huggingface_hub.errors import GatedRepoError
+        if isinstance(exc, GatedRepoError):
+            return True
+    except ImportError:
+        pass
     msg = str(exc)
     return ("gated repo" in msg.lower()
             or "access to model" in msg.lower()
@@ -133,12 +139,23 @@ def download_model(engine_name: str, model_path: str, token: str | None = None) 
         return EXIT_SUCCESS
     except Exception as exc:
         if _is_gated_repo_error(exc):
-            print(
-                f"AUTH REQUIRED: {repo_id} is a gated model that requires "
-                f"authentication for download.\n"
-                f"The model will need to be made available before it can be "
-                f"installed. You can download it later from the application."
-            )
+            if token:
+                print(
+                    f"AUTH REQUIRED: token was provided but access was still denied for {repo_id}.\n"
+                    f"Detail: {exc}\n"
+                    f"Possible causes:\n"
+                    f"  - The token belongs to a different HuggingFace account than the one\n"
+                    f"    that accepted the license at:\n"
+                    f"    https://huggingface.co/{repo_id}\n"
+                    f"  - The token has expired or was revoked\n"
+                    f"  - HuggingFace is temporarily unavailable"
+                )
+            else:
+                print(
+                    f"AUTH REQUIRED: {repo_id} is a gated model. "
+                    f"A HuggingFace access token is required.\n"
+                    f"Detail: {exc}"
+                )
             return EXIT_AUTH_REQUIRED
         msg = str(exc)
         if "401" in msg or "Repository Not Found" in msg:

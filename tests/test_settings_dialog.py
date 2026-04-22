@@ -1,4 +1,4 @@
-"""Tests for SettingsDialog after Professional Mode extraction.
+﻿"""Tests for SettingsDialog after Professional Mode extraction.
 
 Verifies:
   - Professional Mode section has been removed from SettingsDialog.
@@ -11,7 +11,7 @@ import unittest
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
-_SETTINGS_DIALOG_PATH = _REPO_ROOT / "dictator" / "settings_dialog.py"
+_SETTINGS_DIALOG_PATH = _REPO_ROOT / "speakeasy" / "settings_dialog.py"
 
 
 def _qt_available() -> bool:
@@ -22,9 +22,9 @@ def _qt_available() -> bool:
         return False
 
 
-# ═════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 # Structural (AST) tests
-# ═════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 
 class TestSettingsDialogProModeRemoved(unittest.TestCase):
@@ -105,7 +105,7 @@ class TestSettingsDialogProModeRemoved(unittest.TestCase):
         src = self._get_method_source("__init__")
         self.assertNotIn("api_key", src)
 
-    # ── Core settings still present ──────────────────────────────────────
+    # â”€â”€ Core settings still present â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def test_audio_group_in_build_ui(self):
         """_build_ui must still contain Audio group."""
@@ -118,9 +118,9 @@ class TestSettingsDialogProModeRemoved(unittest.TestCase):
         self.assertIn("Dictation UX", src)
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Live widget tests — require PySide6
-# ═════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# Live widget tests â€” require PySide6
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 
 @unittest.skipUnless(_qt_available(), "PySide6 not available")
@@ -133,8 +133,8 @@ class TestSettingsDialogLive(unittest.TestCase):
         cls._app = QApplication.instance() or QApplication([])
 
     def _make_dialog(self):
-        from dictator.config import Settings
-        from dictator.settings_dialog import SettingsDialog
+        from speakeasy.config import Settings
+        from speakeasy.settings_dialog import SettingsDialog
 
         settings = Settings()
         dlg = SettingsDialog(settings)
@@ -163,3 +163,5 @@ class TestSettingsDialogLive(unittest.TestCase):
             self.assertFalse(hasattr(dlg, "_pro_preset_combo"))
         finally:
             dlg.close()
+
+

@@ -1,10 +1,10 @@
-"""Tests for the refactored MainWindow layout.
+﻿"""Tests for the refactored MainWindow layout.
 
 Verifies:
-  Phase 1 – Transcription section is dominant; buttons enlarged, no Dictation GroupBox.
-  Phase 2 – Diagnostics panel collapsed by default; toggling shows/hides.
-  Phase 3 – Status indicators placed between buttons and checkboxes (no QStatusBar).
-  Phase 4 – Clear/Copy buttons are contextually placed in panel headers.
+  Phase 1 â€“ Transcription section is dominant; buttons enlarged, no Dictation GroupBox.
+  Phase 2 â€“ Diagnostics panel collapsed by default; toggling shows/hides.
+  Phase 3 â€“ Status indicators placed between buttons and checkboxes (no QStatusBar).
+  Phase 4 â€“ Clear/Copy buttons are contextually placed in panel headers.
 """
 
 import ast
@@ -12,7 +12,7 @@ import unittest
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
-_MAIN_WINDOW_PATH = _REPO_ROOT / "dictator" / "main_window.py"
+_MAIN_WINDOW_PATH = _REPO_ROOT / "speakeasy" / "main_window.py"
 
 
 def _qt_available() -> bool:
@@ -23,9 +23,9 @@ def _qt_available() -> bool:
         return False
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Structural (AST) tests — no Qt needed
-# ═════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# Structural (AST) tests â€” no Qt needed
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 
 class TestLayoutStructure(unittest.TestCase):
@@ -48,7 +48,7 @@ class TestLayoutStructure(unittest.TestCase):
                 return ast.get_source_segment(self._source, node) or ""
         self.fail(f"Method '{method_name}' not found in MainWindow")
 
-    # ── Phase 1 ──────────────────────────────────────────────────────────
+    # â”€â”€ Phase 1 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def test_no_dictation_groupbox(self):
         """The 'Dictation' QGroupBox must no longer appear in _build_ui."""
@@ -75,7 +75,7 @@ class TestLayoutStructure(unittest.TestCase):
         src = self._get_method_source("_build_ui")
         self.assertNotIn("_lbl_dictation_state", src)
 
-    # ── Phase 2 ──────────────────────────────────────────────────────────
+    # â”€â”€ Phase 2 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def test_diag_toggle_exists(self):
         """_build_ui must create self._diag_toggle."""
@@ -100,7 +100,7 @@ class TestLayoutStructure(unittest.TestCase):
         ]
         self.assertIn("_toggle_diagnostics", method_names)
 
-    # ── Phase 3 ──────────────────────────────────────────────────────────
+    # â”€â”€ Phase 3 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def test_lbl_global_status_created(self):
         """_build_ui must create self._lbl_global_status."""
@@ -131,7 +131,7 @@ class TestLayoutStructure(unittest.TestCase):
         src = self._get_method_source("_set_dictation_state")
         self.assertIn("_update_global_status", src)
 
-    # ── Phase 4 ──────────────────────────────────────────────────────────
+    # â”€â”€ Phase 4 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def test_on_clear_history_method_exists(self):
         """_on_clear_history must be defined as a separate method."""
@@ -172,7 +172,7 @@ class TestLayoutStructure(unittest.TestCase):
         src = self._get_method_source("_build_ui")
         self.assertIn("_btn_copy_logs", src)
 
-    # ── Phase 5 (professional mode button in footer) ───────────────────
+    # â”€â”€ Phase 5 (professional mode button in footer) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def test_no_pro_toggle_in_build_ui(self):
         """PRO toggle button must not be in _build_ui (was removed long ago)."""
@@ -218,7 +218,7 @@ class TestLayoutStructure(unittest.TestCase):
         src = self._get_method_source("_update_global_status")
         self.assertIn("Professional", src)
 
-    # ── Engine worker isolation ────────────────────────────────────────
+    # â”€â”€ Engine worker isolation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def test_init_creates_dedicated_engine_pool(self):
         """MainWindow must create a dedicated single-thread pool for engine work."""
@@ -275,7 +275,7 @@ class TestLayoutStructure(unittest.TestCase):
         self.assertIn("_suspend_mic_stream_for_processing", method_names)
         self.assertIn("_resume_mic_stream_after_processing", method_names)
 
-    # ── Phase 6 (professional mode quick-toggle checkbox) ────────────
+    # â”€â”€ Phase 6 (professional mode quick-toggle checkbox) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def test_chk_professional_in_build_ui(self):
         """_chk_professional checkbox must be created in _build_ui."""
@@ -313,9 +313,9 @@ class TestLayoutStructure(unittest.TestCase):
         self.assertIn("_chk_professional.blockSignals", src)
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Live widget tests — require PySide6
-# ═════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# Live widget tests â€” require PySide6
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 
 @unittest.skipUnless(_qt_available(), "PySide6 not available")
@@ -332,7 +332,7 @@ class TestDiagnosticsToggleLive(unittest.TestCase):
     def _make_window(self):
         """Create a MainWindow with mocked engine for testing."""
         from unittest.mock import MagicMock, PropertyMock, patch
-        from dictator.config import Settings
+        from speakeasy.config import Settings
         import tempfile
 
         settings = Settings()
@@ -346,11 +346,11 @@ class TestDiagnosticsToggleLive(unittest.TestCase):
         self._tmp = tempfile.mkdtemp()
         tmp_presets = Path(self._tmp) / "presets"
 
-        import dictator.main_window as _mw
+        import speakeasy.main_window as _mw
         orig = _mw.DEFAULT_PRESETS_DIR
         _mw.DEFAULT_PRESETS_DIR = tmp_presets
         try:
-            from dictator.main_window import MainWindow
+            from speakeasy.main_window import MainWindow
             win = MainWindow(settings, engine=engine)
         finally:
             _mw.DEFAULT_PRESETS_DIR = orig
@@ -398,28 +398,28 @@ class TestDiagnosticsToggleLive(unittest.TestCase):
         win = self._make_window()
         try:
             text = win._lbl_global_status.text()
-            self.assertIn("Model:", text)
             self.assertIn("Dictation:", text)
+            self.assertIn("Professional:", text)
         finally:
             win.close()
 
     def test_start_button_height(self):
-        """Start button must have minimum height >= 50."""
+        """Record button must have minimum height >= 50."""
         win = self._make_window()
         try:
-            self.assertGreaterEqual(win._btn_start.minimumHeight(), 50)
+            self.assertGreaterEqual(win._btn_record.minimumHeight(), 50)
         finally:
             win.close()
 
-    def test_stop_button_height(self):
-        """Stop button must have minimum height >= 50."""
+    def test_record_button_height(self):
+        """Record button must have minimum height >= 50."""
         win = self._make_window()
         try:
-            self.assertGreaterEqual(win._btn_stop.minimumHeight(), 50)
+            self.assertGreaterEqual(win._btn_record.minimumHeight(), 50)
         finally:
             win.close()
 
-    # ── Phase 6 (professional mode quick-toggle live tests) ──────────
+    # â”€â”€ Phase 6 (professional mode quick-toggle live tests) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def test_chk_professional_exists(self):
         """Professional Mode checkbox must exist on the main window."""
@@ -441,7 +441,7 @@ class TestDiagnosticsToggleLive(unittest.TestCase):
     def test_chk_professional_reflects_settings(self):
         """Professional Mode checkbox reflects settings.professional_mode."""
         from unittest.mock import MagicMock, PropertyMock, patch
-        from dictator.config import Settings
+        from speakeasy.config import Settings
         import tempfile
 
         settings = Settings()
@@ -453,11 +453,11 @@ class TestDiagnosticsToggleLive(unittest.TestCase):
         type(engine).is_loaded = PropertyMock(return_value=False)
 
         tmp = tempfile.mkdtemp()
-        import dictator.main_window as _mw
+        import speakeasy.main_window as _mw
         orig = _mw.DEFAULT_PRESETS_DIR
         _mw.DEFAULT_PRESETS_DIR = Path(tmp) / "presets"
         try:
-            from dictator.main_window import MainWindow
+            from speakeasy.main_window import MainWindow
             win = MainWindow(settings, engine=engine)
             try:
                 self.assertTrue(win._chk_professional.isChecked())
@@ -474,7 +474,7 @@ class TestDiagnosticsToggleLive(unittest.TestCase):
             win._api_key = ""
             # Patch QMessageBox to auto-click No (cancel)
             with patch(
-                "dictator.main_window.QMessageBox.question",
+                "speakeasy.main_window.QMessageBox.question",
                 return_value=QMessageBox.StandardButton.No,
             ):
                 win._chk_professional.setChecked(True)
@@ -486,7 +486,7 @@ class TestDiagnosticsToggleLive(unittest.TestCase):
     def test_toggle_on_with_api_key_enables(self):
         """Enabling Professional Mode with API key and preset must succeed."""
         from unittest.mock import MagicMock
-        from dictator.pro_preset import ProPreset
+        from speakeasy.pro_preset import ProPreset
 
         win = self._make_window()
         try:
@@ -501,7 +501,7 @@ class TestDiagnosticsToggleLive(unittest.TestCase):
     def test_toggle_off_disables(self):
         """Disabling Professional Mode must clear TextProcessor."""
         from unittest.mock import MagicMock
-        from dictator.pro_preset import ProPreset
+        from speakeasy.pro_preset import ProPreset
 
         win = self._make_window()
         try:
@@ -516,3 +516,5 @@ class TestDiagnosticsToggleLive(unittest.TestCase):
             self.assertIsNone(win._text_processor)
         finally:
             win.close()
+
+

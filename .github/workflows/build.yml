@@ -24,15 +24,15 @@ jobs:
 
       - name: Build binary with PyInstaller
         run: |
-          $spec = if ("${{ matrix.variant }}" -eq "cpu") { "dictator-cpu.spec" } else { "dictator.spec" }
+          $spec = if ("${{ matrix.variant }}" -eq "cpu") { "speakeasy-cpu.spec" } else { "speakeasy.spec" }
           uv run pyinstaller $spec
 
       - name: Verify binary exists
         run: |
-          $distDir = if ("${{ matrix.variant }}" -eq "cpu") { "dist\dictator-cpu" } else { "dist\dictator" }
-          $exePath = "$distDir\dictator.exe"
+          $distDir = if ("${{ matrix.variant }}" -eq "cpu") { "dist\speakeasy-cpu" } else { "dist\speakeasy" }
+          $exePath = "$distDir\speakeasy.exe"
           if (!(Test-Path $exePath)) {
-            Write-Error "dictator.exe not found in $distDir"
+            Write-Error "speakeasy.exe not found in $distDir"
             exit 1
           }
           Write-Host "Binary built successfully: $exePath"
@@ -41,6 +41,6 @@ jobs:
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: dictator-binary-${{ matrix.variant }}
-          path: dist/${{ matrix.variant == 'cpu' && 'dictator-cpu' || 'dictator' }}/
+          name: speakeasy-binary-${{ matrix.variant }}
+          path: dist/${{ matrix.variant == 'cpu' && 'speakeasy-cpu' || 'speakeasy' }}/
           retention-days: 7

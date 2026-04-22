@@ -1,7 +1,7 @@
-"""Tests for model-presence validation across source and frozen builds.
+﻿"""Tests for model-presence validation across source and frozen builds.
 
 Ensures that ``model_ready()`` and ``_model_files_exist()`` agree, that
-model path resolution respects DICTATOR_HOME, and that the engine
+model path resolution respects SPEAKEASY_HOME, and that the engine
 registry correctly reports availability based on on-disk model files.
 """
 
@@ -17,8 +17,8 @@ from unittest import mock
 
 import numpy as np
 
-from dictator.engine import ENGINES, _model_files_exist, get_available_engines
-from dictator.model_downloader import _ENGINE_REPO_MAP, model_ready
+from speakeasy.engine import ENGINES, _model_files_exist, get_available_engines
+from speakeasy.model_downloader import _ENGINE_REPO_MAP, model_ready
 
 
 class TestModelReadyAndModelFilesExistAgree(unittest.TestCase):
@@ -81,13 +81,13 @@ class TestAvailableEnginesReflectsModelPresence(unittest.TestCase):
 class TestModelPathResolution(unittest.TestCase):
     """Model path must resolve correctly for source and frozen builds."""
 
-    def test_source_mode_dictator_home(self):
-        """When DICTATOR_HOME is set, INSTALL_DIR / 'models' should match."""
+    def test_source_mode_speakeasy_home(self):
+        """When SPEAKEASY_HOME is set, INSTALL_DIR / 'models' should match."""
         with tempfile.TemporaryDirectory() as d:
-            with mock.patch.dict(os.environ, {"DICTATOR_HOME": d}):
+            with mock.patch.dict(os.environ, {"SPEAKEASY_HOME": d}):
                 # Re-import to pick up the env var
                 import importlib
-                import dictator.config as cfg
+                import speakeasy.config as cfg
                 importlib.reload(cfg)
                 try:
                     expected = Path(d) / "models"
@@ -97,17 +97,17 @@ class TestModelPathResolution(unittest.TestCase):
                     importlib.reload(cfg)
 
     def test_frozen_mode_default(self):
-        """Without DICTATOR_HOME, INSTALL_DIR defaults to Program Files."""
+        """Without SPEAKEASY_HOME, INSTALL_DIR defaults to Program Files."""
         with mock.patch.dict(os.environ, {}, clear=False):
             env = os.environ.copy()
-            env.pop("DICTATOR_HOME", None)
+            env.pop("SPEAKEASY_HOME", None)
             with mock.patch.dict(os.environ, env, clear=True):
                 import importlib
-                import dictator.config as cfg
+                import speakeasy.config as cfg
                 importlib.reload(cfg)
                 try:
                     expected = str(
-                        Path(r"C:\Program Files\dictat0r.AI") / "models"
+                        Path(r"C:\Program Files\SpeakEasy AI") / "models"
                     )
                     self.assertEqual(cfg.DEFAULT_MODELS_DIR, expected)
                 finally:
@@ -135,7 +135,7 @@ class TestEngineRuntimeDependencies(unittest.TestCase):
         self.assertTrue(callable(load_file))
 
     def test_multiprocessing_spawn_available(self):
-        """Windows only supports 'spawn' — model code must not require 'fork'."""
+        """Windows only supports 'spawn' â€” model code must not require 'fork'."""
         import multiprocessing as mp
         import sys
         if sys.platform == "win32":
@@ -208,30 +208,30 @@ class TestStartupModelSetup(unittest.TestCase):
     """Frozen startup must launch setup when the installed model is missing."""
 
     def test_source_startup_does_not_launch_installer(self):
-        import dictator.__main__ as app_main
+        import speakeasy.__main__ as app_main
 
         settings = SimpleNamespace(model_path=r"C:\Models")
 
         with mock.patch.object(app_main.sys, "frozen", False, create=True):
-            with mock.patch("dictator.model_downloader.model_ready", return_value=False):
-                with mock.patch("dictator.model_downloader.launch_cohere_setup_script") as launch:
+            with mock.patch("speakeasy.model_downloader.model_ready", return_value=False):
+                with mock.patch("speakeasy.model_downloader.launch_cohere_setup_script") as launch:
                     self.assertTrue(app_main._ensure_startup_model_ready(settings))
 
         launch.assert_not_called()
 
     def test_frozen_startup_launches_installer_when_model_missing(self):
-        import dictator.__main__ as app_main
+        import speakeasy.__main__ as app_main
         from PySide6.QtWidgets import QMessageBox
 
         settings = SimpleNamespace(model_path=r"C:\Models")
 
         with mock.patch.object(app_main.sys, "frozen", True, create=True):
             with mock.patch(
-                "dictator.model_downloader.model_ready",
+                "speakeasy.model_downloader.model_ready",
                 side_effect=[False, True],
             ):
                 with mock.patch(
-                    "dictator.model_downloader.launch_cohere_setup_script",
+                    "speakeasy.model_downloader.launch_cohere_setup_script",
                     return_value=33,
                 ) as launch:
                     with mock.patch(
@@ -248,21 +248,21 @@ class TestStartupModelSetup(unittest.TestCase):
         critical.assert_not_called()
 
     def test_frozen_startup_shows_error_when_setup_script_missing(self):
-        import dictator.__main__ as app_main
+        import speakeasy.__main__ as app_main
 
         settings = SimpleNamespace(model_path=r"C:\Models")
 
         with mock.patch.object(app_main.sys, "frozen", True, create=True):
-            with mock.patch("dictator.model_downloader.model_ready", return_value=False):
+            with mock.patch("speakeasy.model_downloader.model_ready", return_value=False):
                 with mock.patch(
-                    "dictator.model_downloader.launch_cohere_setup_script",
+                    "speakeasy.model_downloader.launch_cohere_setup_script",
                     side_effect=FileNotFoundError,
                 ):
                     with mock.patch(
-                        "dictator.model_downloader.get_cohere_setup_script_candidates",
+                        "speakeasy.model_downloader.get_cohere_setup_script_candidates",
                         return_value=(
-                            Path(r"C:\Program Files\dictat0r.AI\cohere-model-setup.ps1"),
-                            Path(r"C:\Coding_Projects\dictat0rAI v3\installer\cohere-model-setup.ps1"),
+                            Path(r"C:\Program Files\SpeakEasy AI\cohere-model-setup.ps1"),
+                            Path(r"C:\Coding_Projects\speakeasy\installer\cohere-model-setup.ps1"),
                         ),
                     ):
                         with mock.patch("PySide6.QtWidgets.QMessageBox.critical") as critical:
@@ -273,3 +273,5 @@ class TestStartupModelSetup(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+

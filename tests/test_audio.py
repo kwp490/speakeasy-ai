@@ -1,4 +1,4 @@
-"""Tests for audio recording utilities."""
+﻿"""Tests for audio recording utilities."""
 
 import sys
 import unittest
@@ -7,14 +7,14 @@ from unittest.mock import patch
 
 import numpy as np
 
-from dictator.audio import AudioRecorder, play_beep
+from speakeasy.audio import AudioRecorder, play_beep
 
 
 class TestGetRawAudio(unittest.TestCase):
     def test_returns_1d_mono(self):
         """get_raw_audio must return shape (N,) not (N, 1)."""
         rec = AudioRecorder(sample_rate=16000)
-        # Simulate recorded frames: (samples, 1) — typical sounddevice output
+        # Simulate recorded frames: (samples, 1) â€” typical sounddevice output
         fake_frames = np.random.randn(1600, 1).astype(np.float32)
         rec._queue.put(fake_frames)
         rec._recording.set()
@@ -73,7 +73,7 @@ class TestPlayBeep(unittest.TestCase):
             Beep=lambda freq, dur: calls.append(("tone", freq, dur)),
         )
 
-        with patch("dictator.audio.sys.platform", "win32"):
+        with patch("speakeasy.audio.sys.platform", "win32"):
             with patch.dict(sys.modules, {"winsound": fake_winsound}):
                 play_beep((600, 900), block=True)
                 play_beep((900, 500), block=True)
@@ -88,3 +88,5 @@ class TestPlayBeep(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+

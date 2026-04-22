@@ -1,46 +1,41 @@
 ; ─────────────────────────────────────────────────────────────────────────────
-; dictat0r.AI v3 Inno Setup Installer Script — CPU-Only Variant
+; SpeakEasy AI v3 Inno Setup Installer Script
 ;
-; Produces a single dictator-AI-CPU-Setup-0.3.1.exe that handles:
-;   - File extraction (from PyInstaller dist/dictator-cpu/ output)
+; Produces a single SpeakEasy-AI-Setup-0.3.2.exe that handles:
+;   - File extraction (from PyInstaller dist/speakeasy/ output)
 ;   - HuggingFace token prompt + Cohere Transcribe model download
 ;   - Desktop + Start Menu shortcuts
 ;   - Data migration from previous installs
 ;   - Windows Defender exclusions
 ;   - Silent / unattended mode
 ;
-; This is the CPU-only variant: no CUDA libraries, no GPU detection,
-; smaller installer size. Transcription runs on CPU (slower but works
-; on any system without a dedicated NVIDIA GPU).
-;
 ; Build:
-;   pyinstaller dictator-cpu.spec
-;   iscc installer\dictator-cpu-setup.iss
+;   pyinstaller speakeasy.spec
+;   iscc installer\speakeasy-setup.iss
 ;
 ; Requires Inno Setup 6.x — https://jrsoftware.org/isdl.php
 ; ─────────────────────────────────────────────────────────────────────────────
 
-#define MyAppName "dictat0r.AI"
+#define MyAppName "SpeakEasy AI"
 #define MyAppVersion "0.3.2"
 #define MyAppPublisher "kwp490"
-#define MyAppURL "https://github.com/kwp490/dictat0rAI-v3"
-#define MyAppExeName "dictator.exe"
+#define MyAppURL "https://github.com/kwp490/SpeakEasyAI"
+#define MyAppExeName "speakeasy.exe"
 
 [Setup]
-; Same AppId as GPU variant — installing one replaces the other
 AppId={{A1B2C3D4-5E6F-7A8B-9C0D-E1F2A3B4C5D6}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
-AppVerName={#MyAppName} {#MyAppVersion} (CPU)
+AppVerName={#MyAppName} {#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}/issues
-DefaultDirName={autopf}\dictat0r.AI
+DefaultDirName={autopf}\SpeakEasy AI
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 LicenseFile=..\LICENSE
 OutputDir=Output
-OutputBaseFilename=dictator-AI-CPU-Setup-{#MyAppVersion}
+OutputBaseFilename=SpeakEasy-AI-Setup-{#MyAppVersion}
 #ifdef FastCompress
 Compression=lzma2/fast
 SolidCompression=no
@@ -55,14 +50,17 @@ ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayName={#MyAppName}
 MinVersion=10.0
 SetupLogging=yes
-SetupIconFile=..\dictator\assets\app.ico
+SetupIconFile=..\speakeasy\assets\app.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
+[CustomMessages]
+WelcomeLabel2=SpeakEasy AI delivers clean, accurate transcription on Windows — powered by the Cohere Transcribe model. Publicly reported benchmarks show Cohere Transcribe achieves a lower word error rate than Whisper Large v3, meaning fewer corrections and cleaner output.%n%nSetup will install the application, download the Cohere Transcribe speech model (~5 GB), and configure everything automatically. This takes just a few minutes.
+
 [Files]
-Source: "..\dist\dictator-cpu\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\dist\speakeasy\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "cohere-model-setup.ps1"; DestDir: "{app}"; Flags: ignoreversion
 
 [Dirs]
@@ -73,9 +71,9 @@ Name: "{app}\temp";    Permissions: users-modify
 
 [Icons]
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; \
-    WorkingDir: "{app}"; IconFilename: "{app}\{#MyAppExeName}"; Comment: "dictat0r.AI — Voice to Text (CPU)"
+    WorkingDir: "{app}"; IconFilename: "{app}\{#MyAppExeName}"; Comment: "SpeakEasy AI — Voice to Text"
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; \
-    WorkingDir: "{app}"; IconFilename: "{app}\{#MyAppExeName}"; Comment: "dictat0r.AI — Voice to Text (CPU)"
+    WorkingDir: "{app}"; IconFilename: "{app}\{#MyAppExeName}"; Comment: "SpeakEasy AI — Voice to Text"
 Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 
 [Run]
@@ -106,9 +104,13 @@ var
   TokenLblDisclaimer: TNewStaticText;
   ModelFoundHeader: TNewStaticText;
   ModelFoundNote: TNewStaticText;
+  GpuInfoLabel: TNewStaticText;
   DownloadPage: TOutputProgressWizardPage;
   SummaryPage: TWizardPage;
   SummaryMemo: TNewMemo;
+  DetectedGPU: String;
+  DetectedGPU_Name: String;
+  DetectedVRAM_MB: Integer;
   HFToken: String;
   CleanInstall: Boolean;
   ModelExists: Boolean;
@@ -121,6 +123,7 @@ function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   AppDir, ConfigDir, LogsDir, TempDir: String;
   DoClean: Boolean;
+  ButtonLabels: TArrayOfString;
 begin
   Result := '';
   CleanInstall := False;
@@ -136,11 +139,15 @@ begin
   if WizardSilent then
     DoClean := True
   else
-    DoClean := (MsgBox('An existing dictat0r.AI installation was detected.' + #13#10 + #13#10 +
+  begin
+    SetArrayLength(ButtonLabels, 2);
+    ButtonLabels[0] := 'Clean Install';
+    ButtonLabels[1] := 'Repair Install';
+    DoClean := (TaskDialogMsgBox('An existing SpeakEasy AI installation was detected.',
                         'Clean Install — remove old settings, logs and temp files (recommended).' + #13#10 +
-                        'Repair — keep existing settings and overwrite application files only.' + #13#10 + #13#10 +
-                        'Perform a Clean Install?',
-                        mbConfirmation, MB_YESNO) = IDYES);
+                        'Repair Install — keep existing settings and overwrite application files only.',
+                        mbConfirmation, MB_YESNO, ButtonLabels, 0) = IDYES);
+  end;
 
   if DoClean then
   begin
@@ -149,6 +156,51 @@ begin
     DelTree(LogsDir,  True, True, True);
     DelTree(TempDir,  True, True, True);
   end;
+end;
+
+function DetectGPU: String;
+var
+  ResultCode: Integer;
+  TempFile: String;
+  Lines: TArrayOfString;
+  Raw, Token: String;
+  CommaPos: Integer;
+begin
+  Result := '';
+  DetectedGPU_Name := '';
+  DetectedVRAM_MB := 0;
+  TempFile := ExpandConstant('{tmp}\gpu_detect.txt');
+  if Exec('cmd.exe',
+      '/C nvidia-smi --query-gpu=name,memory.total --format=csv,noheader,nounits > "' + TempFile + '" 2>&1',
+      '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+  begin
+    if (ResultCode = 0) and LoadStringsFromFile(TempFile, Lines) then
+    begin
+      if GetArrayLength(Lines) > 0 then
+      begin
+        Raw := Trim(Lines[0]);
+        Result := Raw;
+        CommaPos := Pos(',', Raw);
+        if CommaPos > 0 then
+        begin
+          DetectedGPU_Name := Trim(Copy(Raw, 1, CommaPos - 1));
+          Token := Trim(Copy(Raw, CommaPos + 1, Length(Raw)));
+          DetectedVRAM_MB := StrToIntDef(Token, 0);
+        end else
+          DetectedGPU_Name := Raw;
+      end;
+    end;
+  end;
+  DeleteFile(TempFile);
+end;
+
+function FormatVRAM_GB(MB: Integer): String;
+var
+  GB_Whole, GB_Frac: Integer;
+begin
+  GB_Whole := MB div 1024;
+  GB_Frac  := ((MB mod 1024) * 10) div 1024;
+  Result := IntToStr(GB_Whole) + '.' + IntToStr(GB_Frac) + ' GB';
 end;
 
 procedure CreateTokenPage;
@@ -160,26 +212,57 @@ begin
     'HuggingFace Authentication',
     'A HuggingFace account and access token are required to download the Cohere Transcribe model.');
 
+  DetectedGPU := DetectGPU;
   TopPos := 0;
 
-  { -- CPU-Only info (always visible) -- }
+  { -- GPU info (always visible) -- }
   Lbl := TNewStaticText.Create(TokenPage);
   Lbl.Parent := TokenPage.Surface;
   Lbl.Left := 0;  Lbl.Top := TopPos;
   Lbl.Width := TokenPage.SurfaceWidth;
-  Lbl.Caption := 'CPU-Only Build';
+  Lbl.Caption := 'Your GPU';
   Lbl.Font.Style := [fsBold];  Lbl.Font.Size := 9;
   TopPos := TopPos + ScaleY(18);
 
-  Lbl := TNewStaticText.Create(TokenPage);
-  Lbl.Parent := TokenPage.Surface;
-  Lbl.Left := ScaleX(8);  Lbl.Top := TopPos;
-  Lbl.Width := TokenPage.SurfaceWidth - ScaleX(8);
-  Lbl.AutoSize := False;  Lbl.WordWrap := True;  Lbl.Height := ScaleY(36);
-  Lbl.Caption := 'This is the CPU-only version. Transcription runs without a GPU.' + #13#10 +
-                 'It works on any system but will be slower than the GPU version.';
-  Lbl.Font.Color := $808080;
-  TopPos := TopPos + ScaleY(40);
+  GpuInfoLabel := TNewStaticText.Create(TokenPage);
+  GpuInfoLabel.Parent := TokenPage.Surface;
+  GpuInfoLabel.Left := ScaleX(8);  GpuInfoLabel.Top := TopPos;
+  GpuInfoLabel.Width := TokenPage.SurfaceWidth - ScaleX(8);
+  GpuInfoLabel.AutoSize := False;  GpuInfoLabel.WordWrap := True;
+
+  if DetectedGPU <> '' then
+  begin
+    if DetectedVRAM_MB > 0 then
+      GpuInfoLabel.Caption := DetectedGPU_Name + '  —  ' + FormatVRAM_GB(DetectedVRAM_MB) + ' VRAM'
+    else
+      GpuInfoLabel.Caption := DetectedGPU_Name;
+    GpuInfoLabel.Height := ScaleY(18);
+  end else
+  begin
+    GpuInfoLabel.Caption := 'No NVIDIA GPU detected. Transcription will use CPU (slower).';
+    GpuInfoLabel.Height := ScaleY(18);
+  end;
+  TopPos := TopPos + GpuInfoLabel.Height + ScaleY(4);
+
+  if DetectedGPU <> '' then
+  begin
+    Lbl := TNewStaticText.Create(TokenPage);
+    Lbl.Parent := TokenPage.Surface;
+    Lbl.Left := ScaleX(16);  Lbl.Top := TopPos;
+    Lbl.Width := TokenPage.SurfaceWidth - ScaleX(16);
+    if DetectedVRAM_MB >= 5120 then
+    begin
+      Lbl.Caption := #$2713 + '  Cohere Transcribe needs ~5 GB — your GPU has enough';
+      Lbl.Font.Color := clGreen;
+    end else
+    begin
+      Lbl.Caption := #$2717 + '  Cohere Transcribe needs ~5 GB — your GPU may not have enough (CPU fallback available)';
+      Lbl.Font.Color := $0000C0;
+    end;
+    TopPos := TopPos + ScaleY(18);
+  end;
+
+  TopPos := TopPos + ScaleY(12);
 
   { Remember where the swappable section starts }
   TokenTop := TopPos;
@@ -261,20 +344,23 @@ begin
   HFToken := Trim(TokenEdit.Text);
   Info := '';
   Info := Info + 'Application:' + NewLine;
-  Info := Info + Space + 'dictat0r.AI {#MyAppVersion} (CPU) — Native Windows Voice-to-Text' + NewLine + NewLine;
+  Info := Info + Space + 'SpeakEasy AI {#MyAppVersion} — Native Windows Voice-to-Text' + NewLine + NewLine;
   if MemoDirInfo <> '' then
     Info := Info + MemoDirInfo + NewLine + NewLine;
   Info := Info + 'Speech engine:' + NewLine;
-  Info := Info + Space + 'Cohere Transcribe 03-2026  (CPU mode, 14 languages)' + NewLine + NewLine;
+  Info := Info + Space + 'Cohere Transcribe 03-2026  (~5 GB VRAM, 14 languages)' + NewLine + NewLine;
   Info := Info + 'The installer will:' + NewLine;
-  Info := Info + Space + '1. Extract dictat0r.AI application files' + NewLine;
+  Info := Info + Space + '1. Extract SpeakEasy AI application files' + NewLine;
   if ModelExists then
-    Info := Info + Space + '2. Cohere Transcribe model — already installed (skip download)' + NewLine
+    Info := Info + Space + '2. Cohere Transcribe model \u2014 already installed (skip download)' + NewLine
   else
     Info := Info + Space + '2. Download Cohere Transcribe model from HuggingFace' + NewLine;
   Info := Info + Space + '3. Create desktop and Start Menu shortcuts' + NewLine;
   Info := Info + Space + '4. Configure Windows Defender exclusions' + NewLine + NewLine;
-  Info := Info + 'Mode: CPU-only (no GPU required)' + NewLine;
+  if DetectedGPU <> '' then
+    Info := Info + 'GPU: ' + DetectedGPU + NewLine
+  else
+    Info := Info + 'GPU: No NVIDIA GPU detected (will use CPU)' + NewLine;
   Result := Info;
 end;
 
@@ -333,9 +419,9 @@ begin
       end;
     end;
   OldLogDir := ExpandConstant('{userappdata}\dictat0r.AI');
-  LogFiles[0] := 'dictator.log';
-  LogFiles[1] := 'dictator.log.1';
-  LogFiles[2] := 'dictator.log.2';
+  LogFiles[0] := 'speakeasy.log';
+  LogFiles[1] := 'speakeasy.log.1';
+  LogFiles[2] := 'speakeasy.log.2';
   for I := 0 to 2 do
   begin
     OldLog := OldLogDir + '\' + LogFiles[I];
@@ -352,7 +438,7 @@ begin
   SettingsFile := ExpandConstant('{app}\config\settings.json');
   if not FileExists(SettingsFile) then
   begin
-    Json := '{' + #13#10 + '  "engine": "cohere",' + #13#10 + '  "device": "cpu"' + #13#10 + '}';
+    Json := '{' + #13#10 + '  "engine": "cohere"' + #13#10 + '}';
     SaveStringToFile(SettingsFile, Json, False);
   end;
 end;
@@ -378,7 +464,7 @@ begin
   ExePath := ExpandConstant('{app}\{#MyAppExeName}');
   ModelsDir := ExpandConstant('{app}\models');
   DownloadPage := CreateOutputProgressPage('Downloading Model',
-    'Downloading the Cohere Transcribe model. This may take several minutes.');
+    'Downloading the Cohere Transcribe speech model — the high-accuracy engine that powers SpeakEasy AI. This may take several minutes.');  
   DownloadPage.Show;
   DownloadPage.SetText('Downloading Cohere Transcribe (CohereLabs/cohere-transcribe-03-2026)...',
     'Source: huggingface.co/CohereLabs/cohere-transcribe-03-2026');
@@ -424,7 +510,9 @@ begin
       DownloadModel;
     InstDir := ExpandConstant('{app}');
     ModelsDir := InstDir + '\models';
-    Summary := 'dictat0r.AI {#MyAppVersion} (CPU) installed successfully.' + #13#10 + #13#10;
+    Summary := 'SpeakEasy AI {#MyAppVersion} is ready.' + #13#10;
+    Summary := Summary + 'Press Ctrl+Alt+P from any application to start recording.' + #13#10;
+    Summary := Summary + 'Powered by Cohere Transcribe — benchmarked at lower word error rate than Whisper Large v3.' + #13#10 + #13#10;
     Summary := Summary + 'INSTALL LOCATION' + #13#10;
     Summary := Summary + '  ' + InstDir + #13#10 + #13#10;
     Summary := Summary + 'MODEL STATUS' + #13#10;
@@ -433,8 +521,6 @@ begin
     else
       Summary := Summary + '  [!!] Cohere Transcribe — download failed (run cohere-model-setup.ps1)' + #13#10;
     Summary := Summary + #13#10;
-    Summary := Summary + 'VARIANT' + #13#10;
-    Summary := Summary + '  CPU-only (no GPU required)' + #13#10 + #13#10;
     Summary := Summary + 'SHORTCUTS' + #13#10;
     Summary := Summary + '  Desktop shortcut created' + #13#10;
     Summary := Summary + '  Start Menu group created' + #13#10 + #13#10;
@@ -442,6 +528,10 @@ begin
     Summary := Summary + '  Ctrl+Alt+P   Start recording' + #13#10;
     Summary := Summary + '  Ctrl+Alt+L   Stop recording & transcribe' + #13#10;
     Summary := Summary + '  Ctrl+Alt+Q   Quit application' + #13#10;
+    if DetectedGPU <> '' then
+      Summary := Summary + #13#10 + 'GPU: ' + DetectedGPU + #13#10
+    else
+      Summary := Summary + #13#10 + 'GPU: No NVIDIA GPU detected (will use CPU)' + #13#10;
     SummaryMemo.Text := Summary;
   end;
 end;

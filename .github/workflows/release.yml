@@ -25,7 +25,7 @@ jobs:
 
       - name: Build binary with PyInstaller
         run: |
-          $spec = if ("${{ matrix.variant }}" -eq "cpu") { "dictator-cpu.spec" } else { "dictator.spec" }
+          $spec = if ("${{ matrix.variant }}" -eq "cpu") { "speakeasy-cpu.spec" } else { "speakeasy.spec" }
           uv run pyinstaller $spec
 
       - name: Install Inno Setup
@@ -34,7 +34,7 @@ jobs:
       - name: Build GUI installer
         run: |
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
-          $iss = if ("${{ matrix.variant }}" -eq "cpu") { "installer\dictator-cpu-setup.iss" } else { "installer\dictator-setup.iss" }
+          $iss = if ("${{ matrix.variant }}" -eq "cpu") { "installer\speakeasy-cpu-setup.iss" } else { "installer\speakeasy-setup.iss" }
           & $iscc $iss
 
       - name: Upload installer artifact
@@ -76,8 +76,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            installer/Output/dictator-AI-Setup-*.exe
-            installer/Output/dictator-AI-CPU-Setup-*.exe
+            installer/Output/SpeakEasy-AI-Setup-*.exe
+            installer/Output/SpeakEasy-AI-CPU-Setup-*.exe
             installer/Output/SHA256SUMS.txt
           body_path: installer/Output/release-notes.md
           draft: false

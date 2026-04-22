@@ -1,10 +1,10 @@
-"""Tests for PyInstaller frozen-build compatibility.
+﻿"""Tests for PyInstaller frozen-build compatibility.
 
 These tests catch issues that only manifest in --noconsole PyInstaller builds:
 - Relative imports in __main__.py (no parent package context)
 - APIs that assume real file descriptors (faulthandler, fileno)
 - Modules that must be importable via absolute paths
-- Dynamic imports must be listed in dictator.spec hiddenimports
+- Dynamic imports must be listed in speakeasy.spec hiddenimports
 """
 
 import ast
@@ -15,8 +15,8 @@ import sys
 import unittest
 from pathlib import Path
 
-# Root of the dictator package
-_DICTATOR_PKG = Path(__file__).resolve().parent.parent / "dictator"
+# Root of the speakeasy package
+_SPEAKEASY_PKG = Path(__file__).resolve().parent.parent / "speakeasy"
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -24,7 +24,7 @@ class TestNoRelativeImportsInMain(unittest.TestCase):
     """__main__.py must use absolute imports for PyInstaller compatibility."""
 
     def test_no_relative_imports(self):
-        source = (_DICTATOR_PKG / "__main__.py").read_text(encoding="utf-8")
+        source = (_SPEAKEASY_PKG / "__main__.py").read_text(encoding="utf-8")
         tree = ast.parse(source, filename="__main__.py")
 
         relative_imports = []
@@ -59,7 +59,7 @@ class TestFaulthandlerWithStringIO(unittest.TestCase):
             sys.stderr = original_stderr
 
     def test_main_guards_faulthandler(self):
-        source = (_DICTATOR_PKG / "__main__.py").read_text(encoding="utf-8")
+        source = (_SPEAKEASY_PKG / "__main__.py").read_text(encoding="utf-8")
         self.assertIn("io.UnsupportedOperation", source,
                        "faulthandler.enable() must be guarded with "
                        "except io.UnsupportedOperation")
@@ -69,15 +69,15 @@ class TestStdioSafetyPatches(unittest.TestCase):
     """__main__.py must patch None stdout/stderr for --noconsole builds."""
 
     def test_stdout_none_guard_exists(self):
-        source = (_DICTATOR_PKG / "__main__.py").read_text(encoding="utf-8")
+        source = (_SPEAKEASY_PKG / "__main__.py").read_text(encoding="utf-8")
         self.assertIn("sys.stdout is None", source)
 
     def test_stderr_none_guard_exists(self):
-        source = (_DICTATOR_PKG / "__main__.py").read_text(encoding="utf-8")
+        source = (_SPEAKEASY_PKG / "__main__.py").read_text(encoding="utf-8")
         self.assertIn("sys.stderr is None", source)
 
     def test_freeze_support_enabled(self):
-        source = (_DICTATOR_PKG / "__main__.py").read_text(encoding="utf-8")
+        source = (_SPEAKEASY_PKG / "__main__.py").read_text(encoding="utf-8")
         self.assertIn(
             "multiprocessing.freeze_support()",
             source,
@@ -86,8 +86,8 @@ class TestStdioSafetyPatches(unittest.TestCase):
 
     def test_runtime_hook_exists(self):
         """A runtime hook must add _MEIPASS to DLL search paths before torch loads."""
-        hook = _DICTATOR_PKG / "_runtime_hook_dll.py"
-        self.assertTrue(hook.exists(), "dictator/_runtime_hook_dll.py is missing")
+        hook = _SPEAKEASY_PKG / "_runtime_hook_dll.py"
+        self.assertTrue(hook.exists(), "speakeasy/_runtime_hook_dll.py is missing")
         source = hook.read_text(encoding="utf-8")
         self.assertIn("os.add_dll_directory", source)
         self.assertIn("_MEIPASS", source)
@@ -95,23 +95,23 @@ class TestStdioSafetyPatches(unittest.TestCase):
                        "Runtime hook must also prepend to PATH for legacy LoadLibraryW")
 
     def test_spec_uses_runtime_hook(self):
-        """dictator.spec must reference the DLL runtime hook."""
-        spec = (_REPO_ROOT / "dictator.spec").read_text(encoding="utf-8")
+        """speakeasy.spec must reference the DLL runtime hook."""
+        spec = (_REPO_ROOT / "speakeasy.spec").read_text(encoding="utf-8")
         self.assertIn("_runtime_hook_dll", spec,
-                       "dictator.spec runtime_hooks must include _runtime_hook_dll")
+                       "speakeasy.spec runtime_hooks must include _runtime_hook_dll")
 
 
 class TestAllModulesImportable(unittest.TestCase):
-    """Every .py file in dictator/ must be importable via absolute paths."""
+    """Every .py file in speakeasy/ must be importable via absolute paths."""
 
     _SKIP_MODULES = frozenset({
-        "dictator.engine.cohere_transcribe",
+        "speakeasy.engine.cohere_transcribe",
     })
 
     def test_import_all_modules(self):
         failures = []
-        for py_file in sorted(_DICTATOR_PKG.rglob("*.py")):
-            rel = py_file.relative_to(_DICTATOR_PKG.parent)
+        for py_file in sorted(_SPEAKEASY_PKG.rglob("*.py")):
+            rel = py_file.relative_to(_SPEAKEASY_PKG.parent)
             module_name = str(rel.with_suffix("")).replace("\\", ".").replace("/", ".")
 
             if module_name in self._SKIP_MODULES:
@@ -134,18 +134,18 @@ class TestAllModulesImportable(unittest.TestCase):
 class TestRelativeImportsInSubpackages(unittest.TestCase):
 
     def test_engine_subpackage_imports(self):
-        from dictator.engine import ENGINES
+        from speakeasy.engine import ENGINES
         self.assertIsInstance(ENGINES, dict)
 
     def test_engine_base_imports(self):
-        from dictator.engine.base import SpeechEngine
+        from speakeasy.engine.base import SpeechEngine
         self.assertTrue(callable(SpeechEngine))
 
 
 class TestHiddenImportsInSpec(unittest.TestCase):
-    """Dynamic imports in __main__.py must be listed in dictator.spec hiddenimports."""
+    """Dynamic imports in __main__.py must be listed in speakeasy.spec hiddenimports."""
 
-    _INTERNAL_PREFIXES = ("dictator.",)
+    _INTERNAL_PREFIXES = ("speakeasy.",)
 
     _STDLIB = frozenset({
         "argparse", "ctypes", "faulthandler", "io", "json", "logging",
@@ -156,12 +156,12 @@ class TestHiddenImportsInSpec(unittest.TestCase):
     })
 
     def _parse_hidden_imports(self) -> set[str]:
-        spec_path = _REPO_ROOT / "dictator.spec"
+        spec_path = _REPO_ROOT / "speakeasy.spec"
         spec_text = spec_path.read_text(encoding="utf-8")
         match = re.search(
             r"hiddenimports\s*=\s*\[(.*?)\]", spec_text, re.DOTALL
         )
-        self.assertIsNotNone(match, "Could not find hiddenimports in dictator.spec")
+        self.assertIsNotNone(match, "Could not find hiddenimports in speakeasy.spec")
         assert match is not None
         entries = re.findall(r"['\"]([^'\"]+)['\"]", match.group(1))
         return set(entries)
@@ -185,7 +185,7 @@ class TestHiddenImportsInSpec(unittest.TestCase):
 
     def test_dynamic_imports_in_hiddenimports(self):
         hidden = self._parse_hidden_imports()
-        deferred = self._collect_deferred_imports(_DICTATOR_PKG / "__main__.py")
+        deferred = self._collect_deferred_imports(_SPEAKEASY_PKG / "__main__.py")
 
         missing = []
         for lineno, top_module in deferred:
@@ -199,14 +199,14 @@ class TestHiddenImportsInSpec(unittest.TestCase):
         self.assertEqual(
             missing,
             [],
-            "Dynamic imports in __main__.py not listed in dictator.spec hiddenimports:\n"
+            "Dynamic imports in __main__.py not listed in speakeasy.spec hiddenimports:\n"
             + "\n".join(missing)
-            + "\nAdd them to hiddenimports in dictator.spec.",
+            + "\nAdd them to hiddenimports in speakeasy.spec.",
         )
 
     def test_dynamic_imports_in_main_window(self):
         hidden = self._parse_hidden_imports()
-        deferred = self._collect_deferred_imports(_DICTATOR_PKG / "main_window.py")
+        deferred = self._collect_deferred_imports(_SPEAKEASY_PKG / "main_window.py")
 
         missing = []
         for lineno, top_module in deferred:
@@ -220,9 +220,9 @@ class TestHiddenImportsInSpec(unittest.TestCase):
         self.assertEqual(
             missing,
             [],
-            "Dynamic imports in main_window.py not listed in dictator.spec hiddenimports:\n"
+            "Dynamic imports in main_window.py not listed in speakeasy.spec hiddenimports:\n"
             + "\n".join(missing)
-            + "\nAdd them to hiddenimports in dictator.spec.",
+            + "\nAdd them to hiddenimports in speakeasy.spec.",
         )
 
 
@@ -230,14 +230,14 @@ class TestTransitiveDependenciesInSpec(unittest.TestCase):
     """Transitive dependencies used at runtime must be bundled in the spec."""
 
     def _read_spec(self) -> str:
-        return (_REPO_ROOT / "dictator.spec").read_text(encoding="utf-8")
+        return (_REPO_ROOT / "speakeasy.spec").read_text(encoding="utf-8")
 
     def _parse_hidden_imports(self) -> set[str]:
         spec_text = self._read_spec()
         match = re.search(
             r"hiddenimports\s*=\s*\[(.*?)\]", spec_text, re.DOTALL
         )
-        assert match, "Could not find hiddenimports in dictator.spec"
+        assert match, "Could not find hiddenimports in speakeasy.spec"
         return set(re.findall(r"['\"]([^'\"]+)['\"]", match.group(1)))
 
     def _parse_excludes(self) -> set[str]:
@@ -245,7 +245,7 @@ class TestTransitiveDependenciesInSpec(unittest.TestCase):
         match = re.search(
             r"excludes\s*=\s*\[(.*?)\]", spec_text, re.DOTALL
         )
-        assert match, "Could not find excludes in dictator.spec"
+        assert match, "Could not find excludes in speakeasy.spec"
         return set(re.findall(r"['\"]([^'\"]+)['\"]", match.group(1)))
 
     def test_transformers_in_hiddenimports(self):
@@ -278,12 +278,12 @@ class TestTransitiveDependenciesInSpec(unittest.TestCase):
         self.assertIn(
             "collect_data_files(",
             spec_text,
-            "dictator.spec must call collect_data_files() for transformers data",
+            "speakeasy.spec must call collect_data_files() for transformers data",
         )
         self.assertIn(
             "transformers",
             spec_text,
-            "dictator.spec must reference transformers in data file collection",
+            "speakeasy.spec must reference transformers in data file collection",
         )
 
     def test_sklearn_excluded(self):
@@ -296,13 +296,13 @@ class TestSpecStripPatterns(unittest.TestCase):
     """Verify stripped binaries are not needed and required ones are kept."""
 
     def _read_spec(self) -> str:
-        return (_REPO_ROOT / "dictator.spec").read_text(encoding="utf-8")
+        return (_REPO_ROOT / "speakeasy.spec").read_text(encoding="utf-8")
 
     def _parse_strip_patterns(self) -> list[str]:
         spec_text = self._read_spec()
         return re.findall(r"_re\.compile\(r'([^']+)'", spec_text)
 
-    # ── Critical CUDA libs must NOT be stripped ──────────────────────────
+    # â”€â”€ Critical CUDA libs must NOT be stripped â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     _MUST_KEEP = [
         "cublas64", "cublasLt64", "cudart64", "cudnn64_9",
@@ -349,7 +349,7 @@ class TestSpecStripPatterns(unittest.TestCase):
         for plugin in unused_plugins:
             self.assertTrue(
                 any(p.search(plugin) for p in patterns),
-                f"dictator.spec should strip '{plugin}'.",
+                f"speakeasy.spec should strip '{plugin}'.",
             )
 
     def test_windows_platform_plugin_not_stripped(self):
@@ -367,7 +367,7 @@ class TestSpecStripPatterns(unittest.TestCase):
         self.assertIn(
             "a.datas = _filter_entries(a.datas)",
             spec_text,
-            "dictator.spec must filter data entries with the strip patterns.",
+            "speakeasy.spec must filter data entries with the strip patterns.",
         )
 
     def test_sklearn_payload_is_stripped(self):
@@ -380,15 +380,15 @@ class TestSpecStripPatterns(unittest.TestCase):
         for entry in sample_entries:
             self.assertTrue(
                 any(p.search(entry) for p in patterns),
-                f"dictator.spec should strip '{entry}'.",
+                f"speakeasy.spec should strip '{entry}'.",
             )
 
-    # ── Excluded modules must not break engine imports ───────────────────
+    # â”€â”€ Excluded modules must not break engine imports â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def _parse_excludes(self) -> set[str]:
         spec_text = self._read_spec()
         m = re.search(r"excludes\s*=\s*\[(.*?)\]", spec_text, re.DOTALL)
-        assert m, "Could not find excludes in dictator.spec"
+        assert m, "Could not find excludes in speakeasy.spec"
         return set(re.findall(r"['\"]([^'\"]+)['\"]", m.group(1)))
 
     _ENGINE_DEPS = [
@@ -429,7 +429,7 @@ class TestSpecStripPatterns(unittest.TestCase):
         ``ModuleNotFoundError``.  Move such modules from ``excludes``
         to ``hiddenimports``.
         """
-        import torch  # noqa: F401 — ensures torch startup imports are loaded
+        import torch  # noqa: F401 â€” ensures torch startup imports are loaded
         excludes = {e for e in self._parse_excludes() if e.startswith("torch.")}
 
         loaded_and_excluded = []
@@ -442,8 +442,8 @@ class TestSpecStripPatterns(unittest.TestCase):
         self.assertEqual(
             loaded_and_excluded,
             [],
-            "These modules are in dictator.spec excludes but were imported "
-            "during torch startup — they must be moved to hiddenimports:\n"
+            "These modules are in speakeasy.spec excludes but were imported "
+            "during torch startup â€” they must be moved to hiddenimports:\n"
             + "\n".join(f"  {mod} (matched exclude '{excl}')"
                         for mod, excl in loaded_and_excluded),
         )
@@ -485,7 +485,7 @@ class TestWindowsMultiprocessingCompat(unittest.TestCase):
 
     def test_cohere_engine_patches_fork_context(self):
         """cohere_transcribe.py must contain the fork -> spawn patch."""
-        source = (_REPO_ROOT / "dictator" / "engine" / "cohere_transcribe.py").read_text(
+        source = (_REPO_ROOT / "speakeasy" / "engine" / "cohere_transcribe.py").read_text(
             encoding="utf-8"
         )
         self.assertIn(
@@ -503,10 +503,10 @@ class TestWindowsMultiprocessingCompat(unittest.TestCase):
 class TestDistOutputEssentials(unittest.TestCase):
     """If dist/ exists, verify critical torch/CUDA DLLs are present."""
 
-    _DIST = _REPO_ROOT / "dist" / "dictator" / "_internal"
+    _DIST = _REPO_ROOT / "dist" / "speakeasy" / "_internal"
 
     @unittest.skipUnless(
-        (_REPO_ROOT / "dist" / "dictator" / "_internal").is_dir(),
+        (_REPO_ROOT / "dist" / "speakeasy" / "_internal").is_dir(),
         "No dist/ build present",
     )
     def test_critical_cuda_dlls_present(self):
@@ -519,11 +519,11 @@ class TestDistOutputEssentials(unittest.TestCase):
         ]:
             self.assertTrue(
                 list(self._DIST.rglob(pat)),
-                f"Required '{pat}' missing from dist/ — strip too aggressive?",
+                f"Required '{pat}' missing from dist/ â€” strip too aggressive?",
             )
 
     @unittest.skipUnless(
-        (_REPO_ROOT / "dist" / "dictator" / "_internal").is_dir(),
+        (_REPO_ROOT / "dist" / "speakeasy" / "_internal").is_dir(),
         "No dist/ build present",
     )
     def test_torch_cuda_support_dlls_present(self):
@@ -537,11 +537,11 @@ class TestDistOutputEssentials(unittest.TestCase):
         ]:
             self.assertTrue(
                 list(self._DIST.rglob(pat)),
-                f"Required '{pat}' missing from dist/ — torch DLL strip too aggressive?",
+                f"Required '{pat}' missing from dist/ â€” torch DLL strip too aggressive?",
             )
 
     @unittest.skipUnless(
-        (_REPO_ROOT / "dist" / "dictator" / "_internal").is_dir(),
+        (_REPO_ROOT / "dist" / "speakeasy" / "_internal").is_dir(),
         "No dist/ build present",
     )
     def test_torch_core_present(self):
@@ -562,7 +562,7 @@ class TestCpuSpecStripPatterns(unittest.TestCase):
     and crash with WinError 126.
     """
 
-    _CPU_SPEC = _REPO_ROOT / "dictator-cpu.spec"
+    _CPU_SPEC = _REPO_ROOT / "speakeasy-cpu.spec"
 
     def _parse_cpu_strip_patterns(self) -> list[re.Pattern]:
         spec_text = self._CPU_SPEC.read_text(encoding="utf-8")
@@ -601,7 +601,7 @@ class TestCpuSpecStripPatterns(unittest.TestCase):
         r"torch\lib\nvrtc64_120_0.alt.dll",
     ]
 
-    # DLLs that must NOT be stripped — the CPU build still needs these.
+    # DLLs that must NOT be stripped â€” the CPU build still needs these.
     _CPU_KEEP = [
         r"torch\lib\torch_cpu.dll",
         r"torch\lib\torch.dll",
@@ -613,8 +613,8 @@ class TestCpuSpecStripPatterns(unittest.TestCase):
     ]
 
     @unittest.skipUnless(
-        (_REPO_ROOT / "dictator-cpu.spec").is_file(),
-        "dictator-cpu.spec not present",
+        (_REPO_ROOT / "speakeasy-cpu.spec").is_file(),
+        "speakeasy-cpu.spec not present",
     )
     def test_all_cuda_dlls_stripped(self):
         """Every known CUDA/NVIDIA DLL must be caught by CPU strip patterns."""
@@ -632,8 +632,8 @@ class TestCpuSpecStripPatterns(unittest.TestCase):
         )
 
     @unittest.skipUnless(
-        (_REPO_ROOT / "dictator-cpu.spec").is_file(),
-        "dictator-cpu.spec not present",
+        (_REPO_ROOT / "speakeasy-cpu.spec").is_file(),
+        "speakeasy-cpu.spec not present",
     )
     def test_cpu_essential_dlls_not_stripped(self):
         """CPU-essential torch DLLs must survive the strip pass."""
@@ -658,8 +658,8 @@ class TestCpuSpecStripPatterns(unittest.TestCase):
     ]
 
     @unittest.skipUnless(
-        (_REPO_ROOT / "dictator-cpu.spec").is_file(),
-        "dictator-cpu.spec not present",
+        (_REPO_ROOT / "speakeasy-cpu.spec").is_file(),
+        "speakeasy-cpu.spec not present",
     )
     def test_cuda_strip_patterns_not_applied_to_pure(self):
         """CUDA binary patterns must only filter a.binaries, not a.pure.
@@ -685,7 +685,7 @@ class TestCpuSpecStripPatterns(unittest.TestCase):
             if stripped.startswith("a.pure") and "=" in stripped:
                 self.assertNotIn(
                     "_CUDA_BINARY_PATTERNS", stripped,
-                    "a.pure must not be filtered with _CUDA_BINARY_PATTERNS — "
+                    "a.pure must not be filtered with _CUDA_BINARY_PATTERNS â€” "
                     "this would strip torch.backends.cudnn and other Python stubs.",
                 )
             if stripped.startswith("a.datas") and "=" in stripped:
@@ -695,8 +695,8 @@ class TestCpuSpecStripPatterns(unittest.TestCase):
                 )
 
     @unittest.skipUnless(
-        (_REPO_ROOT / "dictator-cpu.spec").is_file(),
-        "dictator-cpu.spec not present",
+        (_REPO_ROOT / "speakeasy-cpu.spec").is_file(),
+        "speakeasy-cpu.spec not present",
     )
     def test_general_strip_patterns_spare_torch_backend_modules(self):
         """_STRIP_PATTERNS (applied to a.pure) must not match torch backend modules."""
@@ -714,3 +714,5 @@ class TestCpuSpecStripPatterns(unittest.TestCase):
                     f"CPU _STRIP_PATTERNS r'{pat.pattern}' would strip "
                     f"Python module '{mod}' from a.pure.",
                 )
+
+

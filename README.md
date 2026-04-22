@@ -1,12 +1,35 @@
-# dictat0r.AI — Native Windows Voice-to-Text
+# SpeakEasy AI — Native Windows Voice-to-Text
 
-**Real-time speech transcription on Windows — GPU-accelerated or CPU-only.**
+*Clean transcripts. Fewer corrections. Runs privately on your own machine.*
 
-Press a hotkey, speak, and your transcribed text is pasted into the active window. Runs natively with NVIDIA CUDA acceleration or on CPU alone — no setup complexity.
+**Accurate, fast speech-to-text for Windows, powered by the Cohere Transcribe model.**
+
+Press a hotkey, speak, and your transcribed text is pasted into the active window. Runs locally with NVIDIA CUDA acceleration or on CPU alone — no cloud, no subscription, no setup complexity.
+
+## Why SpeakEasy AI
+
+SpeakEasy AI is built around a single goal: accurate transcription that you can trust. The Cohere Transcribe model it uses has been benchmarked against Whisper Large v3 — a widely adopted open-source ASR baseline — and delivers meaningfully fewer transcription errors.
+
+| Model                                   | Word Error Rate (WER) |
+| --------------------------------------- | --------------------- |
+| **Cohere Transcribe 03-2026**           | **5.42%**             |
+| Whisper Large v3                        | 7.44%                 |
+
+*Word Error Rate (WER) measures the percentage of words transcribed incorrectly — lower is better. Based on publicly reported benchmark results.*
+
+The difference corresponds to roughly **27% fewer transcription errors** relative to Whisper Large v3. In practice, that means less time correcting output and more accurate text the first time.
+
+Other reasons to use SpeakEasy AI:
+
+- **Private by design** — audio is processed locally; nothing leaves your machine
+- **Runs anywhere** — GPU (CUDA) for fast inference, or CPU-only on any Windows PC
+- **Easy setup** — double-click installer, paste a HuggingFace token, and you're running
+- **Auto-paste** — transcribed text goes directly into the active window, no copy-paste needed
+- **Professional Mode** — optional AI post-processing to clean tone, grammar, and punctuation
 
 ## Getting Started
 
-There are two ways to install dictat0r.AI: download the pre-built installer (recommended), or build from source. Both methods support GPU and CPU-only variants.
+There are two ways to install SpeakEasy AI: download the pre-built installer (recommended), or build from source. Both methods support GPU and CPU-only variants.
 
 **Requirements (both methods):** Windows 10/11 (64-bit), [HuggingFace account](https://huggingface.co/join) with access to [CohereLabs/cohere-transcribe-03-2026](https://huggingface.co/CohereLabs/cohere-transcribe-03-2026). An NVIDIA GPU (RTX 30-series or newer, 6+ GB VRAM, Driver 525+) is recommended for fast inference but not required — the app can run on CPU (slower).
 
@@ -14,15 +37,15 @@ There are two ways to install dictat0r.AI: download the pre-built installer (rec
 
 | Variant               | Download                                         | Requirements                                 |
 | --------------------- | ------------------------------------------------ | -------------------------------------------- |
-| **GPU** (recommended) | [dictator-AI-Setup-0.3.0.exe][gpu-installer]     | NVIDIA GPU (RTX 30+, 6 GB VRAM, Driver 525+) |
-| **CPU**               | [dictator-AI-CPU-Setup-0.3.0.exe][cpu-installer] | No GPU required (slower inference)           |
+| **GPU** (recommended) | [SpeakEasy-AI-Setup-0.3.2.exe][gpu-installer]     | NVIDIA GPU (RTX 30+, 6 GB VRAM, Driver 525+) |
+| **CPU**               | [SpeakEasy-AI-CPU-Setup-0.3.2.exe][cpu-installer] | No GPU required (slower inference)           |
 
-[gpu-installer]: https://github.com/kwp490/dictat0rAI-v3/releases/download/v0.3.0/dictator-AI-Setup-0.3.0.exe
-[cpu-installer]: https://github.com/kwp490/dictat0rAI-v3/releases/download/v0.3.0/dictator-AI-CPU-Setup-0.3.0.exe
+[gpu-installer]: https://github.com/kwp490/SpeakEasyAI/releases/download/v0.3.2/SpeakEasy-AI-Setup-0.3.2.exe
+[cpu-installer]: https://github.com/kwp490/SpeakEasyAI/releases/download/v0.3.2/SpeakEasy-AI-CPU-Setup-0.3.2.exe
 
 Double-click the installer and follow the prompts. No Python, no command line required. The installer will:
 
-1. Extract application files to `C:\Program Files\dictat0r.AI`
+1. Extract application files to `C:\Program Files\SpeakEasy AI`
 2. Prompt for your HuggingFace API token (required for gated model access)
 3. Download the Cohere Transcribe speech model from HuggingFace
 4. Create desktop and Start Menu shortcuts
@@ -41,13 +64,13 @@ For developers or users who prefer to build and run from source. Requires [Git](
 irm https://astral.sh/uv/install.ps1 | iex
 
 # 2. Clone and install dependencies
-git clone https://github.com/kwp490/dictat0rAI-v3.git
-cd dictat0rAI-v3
+git clone https://github.com/kwp490/SpeakEasyAI.git
+cd SpeakEasyAI
 uv sync
 
 # 3. Download the model and launch
-uv run dictator download-model --token YOUR_HF_TOKEN
-uv run dictator
+uv run speakeasy download-model --token YOUR_HF_TOKEN
+uv run speakeasy
 ```
 
 **CPU-only (no GPU required):**
@@ -57,17 +80,17 @@ uv run dictator
 uv pip install --index-url https://download.pytorch.org/whl/cpu --upgrade --force-reinstall torch
 
 # Download the model and launch
-uv run dictator download-model --token YOUR_HF_TOKEN
-uv run dictator
+uv run speakeasy download-model --token YOUR_HF_TOKEN
+uv run speakeasy
 ```
 
 Or use the automated source installer (requires admin):
 
 ```powershell
 Set-ExecutionPolicy Bypass -Scope Process -Force
-.\installer\Install-Dictator-Source.ps1              # interactive prompt
-.\installer\Install-Dictator-Source.ps1 -Variant CPU  # CPU-only, no GPU required
-.\installer\Install-Dictator-Source.ps1 -Variant GPU  # GPU with CUDA acceleration
+.\installer\Install-SpeakEasy-Source.ps1              # interactive prompt
+.\installer\Install-SpeakEasy-Source.ps1 -Variant CPU  # CPU-only, no GPU required
+.\installer\Install-SpeakEasy-Source.ps1 -Variant GPU  # GPU with CUDA acceleration
 ```
 
 ### Option 3 — Build the installer yourself
@@ -87,7 +110,7 @@ Output installers are written to `installer\Output\`.
 
 ## Features
 
-- **Cohere Transcribe 03-2026**: High-accuracy 2B-parameter ASR model, 14 languages, ~5 GB VRAM
+- **Cohere Transcribe 03-2026**: 2B-parameter ASR model, 14 languages, ~5 GB VRAM — benchmarked at 5.42% WER (see [Why SpeakEasy AI](#why-speakeasy-ai) above)
 - **Professional Mode**: AI-powered text cleanup via OpenAI API with a preset system — 5 built-in presets, custom presets, domain vocabulary preservation, and per-preset model selection
 - **Punctuation control**: Enable or disable automatic punctuation in transcription output
 - **Global hotkeys**: Start/stop recording from any application (configurable bindings)
@@ -95,7 +118,7 @@ Output installers are written to `installer\Output\`.
 - **GPU-accelerated**: Leverages NVIDIA CUDA for fast inference
 - **Microphone selection**: Choose a specific input device or use the system default
 - **Sleep/wake recovery**: Hotkeys automatically re-register after Windows resume from sleep
-- **Single-instance guard**: Prevents multiple dictat0r.AI processes from running simultaneously
+- **Single-instance guard**: Prevents multiple SpeakEasy AI processes from running simultaneously
 - **Real-time resource monitoring**: RAM, VRAM, and GPU temperature displayed in the diagnostics panel
 - **Audio feedback**: Beep tones on recording start/stop
 - **GPU and CPU variants** — GPU installer with CUDA acceleration, or lightweight CPU-only installer
@@ -106,7 +129,7 @@ Output installers are written to `installer\Output\`.
 | Setting              | Default                                | Description                                      |
 | -------------------- | -------------------------------------- | ------------------------------------------------ |
 | `engine`             | `cohere`                               | Speech engine (Cohere Transcribe)                |
-| `model_path`         | `C:\Program Files\dictat0r.AI\models`  | Directory for model weights                      |
+| `model_path`         | `C:\Program Files\SpeakEasy AI\models`  | Directory for model weights                      |
 | `device`             | `cuda` (GPU) / `cpu` (CPU)             | Inference device — GPU builds default to `cuda` and allow `cpu` fallback; CPU builds are locked to `cpu` |
 | `language`           | `en`                                   | Language code                                    |
 | `punctuation`        | `true`                                 | Enable automatic punctuation in transcription    |
@@ -114,8 +137,7 @@ Output installers are written to `installer\Output\`.
 | `auto_copy`          | `true`                                 | Auto-copy transcription to clipboard             |
 | `auto_paste`         | `true`                                 | Auto-paste via Ctrl+V after transcription        |
 | `hotkeys_enabled`    | `true`                                 | Master toggle for global hotkeys                 |
-| `hotkey_start`       | `ctrl+alt+p`                           | Start-recording hotkey                           |
-| `hotkey_stop`        | `ctrl+alt+l`                           | Stop/transcribe hotkey                           |
+| `hotkey_start`       | `ctrl+alt+p`                           | Record toggle hotkey (start or stop recording)   |
 | `hotkey_quit`        | `ctrl+alt+q`                           | Quit application hotkey                          |
 | `clear_logs_on_exit` | `true`                                 | Clear log files when the application exits       |
 | `mic_device_index`   | `-1`                                   | Microphone device index (`-1` = system default)  |
@@ -126,7 +148,7 @@ Output installers are written to `installer\Output\`.
 | `pro_active_preset`  | `General Professional`                 | Active Professional Mode preset name             |
 | `store_api_key`      | `false`                                | Persist API key in Windows Credential Manager    |
 
-Settings are stored at `C:\Program Files\dictat0r.AI\config\settings.json`.
+Settings are stored at `C:\Program Files\SpeakEasy AI\config\settings.json`.
 
 > **Note:** The OpenAI API key is **never** stored in `settings.json`. It is held in memory only, unless you enable "Remember API key", which saves it securely via Windows Credential Manager (DPAPI).
 
@@ -134,9 +156,8 @@ Settings are stored at `C:\Program Files\dictat0r.AI\config\settings.json`.
 
 | Hotkey (default)     | Action                               |
 | -------------------- | ------------------------------------ |
-| `Ctrl+Alt+P`         | Start recording                      |
-| `Ctrl+Alt+L`         | Stop recording & transcribe          |
-| `Ctrl+Alt+Q`         | Quit application                     |
+| `Ctrl+Alt+P`         | Toggle recording (start / stop & transcribe) |
+| `Ctrl+Alt+Q`         | Quit application                             |
 
 All hotkey bindings are configurable in Settings. Hotkeys can also be disabled entirely via the `hotkeys_enabled` toggle. After Windows resumes from sleep, hotkeys are automatically re-registered.
 
@@ -172,8 +193,8 @@ You can also create, duplicate, and delete custom presets. Each preset has its o
 ## Architecture
 
 ```
-┌────────────────────────────────────────────┐
-│       dictat0r.AI GUI  (PySide6 / Qt)      │
+┌─────────────────────────────────────────────┐
+│       SpeakEasy AI GUI  (PySide6 / Qt)      │
 │ ┌────────────┐  ┌──────────────────┐       │
 │ │ Hotkey Mgr │  │ Resource Monitor │       │
 │ │ (sleep/    │  │ (RAM + VRAM +    │       │
@@ -216,7 +237,7 @@ Cohere Transcribe supports 14 languages:
 
 Some antivirus products may flag the PyInstaller-packaged `.exe` as suspicious. This is a known false positive common to all PyInstaller applications. You can:
 
-1. Add `C:\Program Files\dictat0r.AI` to your antivirus exclusion list
+1. Add `C:\Program Files\SpeakEasy AI` to your antivirus exclusion list
 2. The installer automatically configures Windows Defender exclusions
 
 ## License

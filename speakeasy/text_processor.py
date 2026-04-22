@@ -19,7 +19,8 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-_KEYRING_SERVICE = "dictator"
+_KEYRING_SERVICE = "speakeasy"
+_KEYRING_SERVICE_LEGACY = "dictator"  # migration fallback from dictat0r.AI
 _KEYRING_USERNAME = "openai_api_key"
 
 # Timeout for API requests (connect, read) in seconds.
@@ -211,12 +212,28 @@ def load_api_key_from_keyring() -> str:
     """Load the stored API key from Windows Credential Manager.
 
     Returns an empty string if *keyring* is unavailable or no key is stored.
+    Migrates keys stored under the legacy service name ('dictator') to the
+    new service name ('speakeasy') on first load.
     """
     try:
         import keyring
 
         value = keyring.get_password(_KEYRING_SERVICE, _KEYRING_USERNAME)
-        return value or ""
+        if value:
+            return value
+        # Migration: check legacy service name from dictat0r.AI
+        legacy_value = keyring.get_password(_KEYRING_SERVICE_LEGACY, _KEYRING_USERNAME)
+        if legacy_value:
+            # Migrate to new service name
+            try:
+                keyring.set_password(_KEYRING_SERVICE, _KEYRING_USERNAME, legacy_value)
+                keyring.delete_password(_KEYRING_SERVICE_LEGACY, _KEYRING_USERNAME)
+                log.info("Migrated API key from legacy keyring service '%s' to '%s'",
+                         _KEYRING_SERVICE_LEGACY, _KEYRING_SERVICE)
+            except Exception:
+                log.debug("Could not migrate API key to new keyring service", exc_info=True)
+            return legacy_value
+        return ""
     except Exception:
         log.debug("Could not load API key from keyring", exc_info=True)
         return ""

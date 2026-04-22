@@ -1,11 +1,11 @@
-"""Tests for ProPreset dataclass and preset management."""
+﻿"""Tests for ProPreset dataclass and preset management."""
 
 import json
 import tempfile
 import unittest
 from pathlib import Path
 
-from dictator.pro_preset import (
+from speakeasy.pro_preset import (
     BUILTIN_PRESET_NAMES,
     ProPreset,
     _safe_filename,
@@ -79,6 +79,9 @@ class BuiltinPresetsTests(unittest.TestCase):
             "Casual / Friendly",
             "Email / Correspondence",
             "Simplified (8th Grade)",
+            "Medieval Bard",
+            "Wise Galactic Sage",
+            "Unhinged Mode",
         }
         self.assertEqual(BUILTIN_PRESET_NAMES, expected)
 
@@ -234,3 +237,4 @@ class PresetNameCollisionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

@@ -17,11 +17,11 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $AppDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$Exe    = Join-Path $AppDir 'dictator.exe'
+$Exe    = Join-Path $AppDir 'speakeasy.exe'
 
 if (-not (Test-Path $Exe)) {
     Write-Host ''
-    Write-Host 'ERROR: dictator.exe not found at:' -ForegroundColor Red
+    Write-Host 'ERROR: speakeasy.exe not found at:' -ForegroundColor Red
     Write-Host "  $Exe" -ForegroundColor Red
     Write-Host ''
     Write-Host 'This script is designed for the installed build.' -ForegroundColor Yellow
@@ -48,6 +48,7 @@ function Write-Instructions {
     Write-Host ''
     Write-Host '  Step 2: Go to the model page and click "Agree and access repository"' -ForegroundColor White
     Write-Host '          https://huggingface.co/CohereLabs/cohere-transcribe-03-2026' -ForegroundColor Green
+    Write-Host '          (use the same account the token belongs to)' -ForegroundColor Gray
     Write-Host ''
     Write-Host '  Step 3: Create an access token (Read permission is sufficient)' -ForegroundColor White
     Write-Host '          https://huggingface.co/settings/tokens' -ForegroundColor Green
@@ -72,12 +73,28 @@ function Start-Download {
         try {
             $arguments = @('download-model', '--token', $token)
             if ($TargetDir) {
-                $arguments += @('--target-dir', $TargetDir)
+                $arguments += @('--target-dir', "`"$TargetDir`"")
             }
+
+            # speakeasy.exe is a GUI-subsystem app (console=False) so stdout/stderr
+            # are not inherited from the parent console. Redirect them to temp files
+            # so we can display progress and error details.
+            $tmpOut = [System.IO.Path]::GetTempFileName()
+            $tmpErr = [System.IO.Path]::GetTempFileName()
 
             $process = Start-Process -FilePath $Exe `
                 -ArgumentList $arguments `
-                -Wait -PassThru -NoNewWindow
+                -Wait -PassThru -NoNewWindow `
+                -RedirectStandardOutput $tmpOut `
+                -RedirectStandardError  $tmpErr
+
+            # Print captured output to the console
+            $outLines = Get-Content $tmpOut -ErrorAction SilentlyContinue
+            $errLines = Get-Content $tmpErr -ErrorAction SilentlyContinue
+            Remove-Item $tmpOut, $tmpErr -ErrorAction SilentlyContinue
+
+            foreach ($line in $outLines) { Write-Host $line }
+            foreach ($line in $errLines) { Write-Host $line -ForegroundColor Yellow }
         } catch {
             Write-Host ''
             Write-Host "ERROR: Failed to launch download: $_" -ForegroundColor Red
@@ -100,10 +117,12 @@ function Start-Download {
             }
             2 {
                 Write-Host ''
-                Write-Host 'Authentication failed.' -ForegroundColor Red
+                Write-Host 'Model access denied.' -ForegroundColor Red
                 Write-Host 'Possible causes:' -ForegroundColor Yellow
-                Write-Host '  - Invalid or expired token' -ForegroundColor Yellow
-                Write-Host '  - You have not accepted the license at:' -ForegroundColor Yellow
+                Write-Host '  - The token belongs to a different account than the one that' -ForegroundColor Yellow
+                Write-Host '    accepted the license (must be the same HuggingFace account)' -ForegroundColor Yellow
+                Write-Host '  - Invalid, expired, or revoked token' -ForegroundColor Yellow
+                Write-Host '  - You have not yet accepted the license at:' -ForegroundColor Yellow
                 Write-Host '    https://huggingface.co/CohereLabs/cohere-transcribe-03-2026' -ForegroundColor Green
                 Write-Host ''
                 Write-Host 'Would you like to try again?' -ForegroundColor White
