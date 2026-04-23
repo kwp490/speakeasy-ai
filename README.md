@@ -1,6 +1,6 @@
 # SpeakEasy AI — Native Windows Voice-to-Text
 
-*Clean transcripts. Fewer corrections. Speech-to-text runs privately on your own machine.*
+*Clean transcripts. Fewer corrections. Runs privately on your own machine.*
 
 **Accurate, fast speech-to-text for Windows, powered by the Cohere Transcribe model.**
 
@@ -21,7 +21,7 @@ The difference corresponds to roughly **27% fewer transcription errors** relativ
 
 Other reasons to use SpeakEasy AI:
 
-- **Private by default** — audio and transcription are processed locally; nothing leaves your machine unless you opt in to Professional Mode, which sends text to the OpenAI API for cleanup
+- **Private by design** — audio is processed locally; nothing leaves your machine
 - **Runs anywhere** — GPU (CUDA) for fast inference, or CPU-only on any Windows PC
 - **Easy setup** — double-click installer, paste a HuggingFace token, and you're running
 - **Auto-paste** — transcribed text goes directly into the active window, no copy-paste needed
@@ -31,9 +31,7 @@ Other reasons to use SpeakEasy AI:
 
 There are two ways to install SpeakEasy AI: download the pre-built installer (recommended), or build from source. Both methods support GPU and CPU-only variants.
 
-**Requirements (both methods):** Windows 10/11 (64-bit), [HuggingFace account](https://huggingface.co/join) with access to [CohereLabs/cohere-transcribe-03-2026](https://huggingface.co/CohereLabs/cohere-transcribe-03-2026).
-
-> **GPU vs CPU:** An NVIDIA GPU (RTX 30-series or newer, 6+ GB VRAM, Driver 525+) is **recommended** for fast inference but is **not required**. The CPU-only variant runs on any Windows PC — transcription is slower but fully functional. If you don't have a compatible GPU, choose the CPU installer or the CPU source path below.
+**Requirements (both methods):** Windows 10/11 (64-bit), [HuggingFace account](https://huggingface.co/join) with access to [CohereLabs/cohere-transcribe-03-2026](https://huggingface.co/CohereLabs/cohere-transcribe-03-2026). An NVIDIA GPU (RTX 30-series or newer, 6+ GB VRAM, Driver 525+) is recommended for fast inference but not required — the app can run on CPU (slower).
 
 ### Option 1 — Installer (recommended)
 
@@ -113,7 +111,7 @@ Output installers are written to `installer\Output\`.
 ## Features
 
 - **Cohere Transcribe 03-2026**: 2B-parameter ASR model, 14 languages, ~5 GB VRAM — benchmarked at 5.42% WER (see [Why SpeakEasy AI](#why-speakeasy-ai) above)
-- **Professional Mode**: AI-powered text cleanup via OpenAI API with a preset system — 8 built-in presets (including fun/creative modes), custom presets, domain vocabulary preservation, and per-preset model selection
+- **Professional Mode**: AI-powered text cleanup via OpenAI API with a preset system — 5 built-in presets, custom presets, domain vocabulary preservation, and per-preset model selection
 - **Punctuation control**: Enable or disable automatic punctuation in transcription output
 - **Global hotkeys**: Start/stop recording from any application (configurable bindings)
 - **Auto-paste**: Transcribed text goes directly to your active window
@@ -178,18 +176,15 @@ Each option is configured per preset — you can have different cleanup rules fo
 
 ### Presets
 
-Eight built-in presets are included:
+Five built-in presets are included:
 
-| Preset                      | Description                                                                     |
-| --------------------------- | ------------------------------------------------------------------------------- |
-| **General Professional**    | Neutral business tone, clear and concise                                        |
-| **Technical / Engineering** | Preserves jargon, acronyms, and technical terminology                           |
-| **Casual / Friendly**       | Warm, approachable, conversational tone                                         |
-| **Email / Correspondence**  | Professional email with greeting/sign-off, short paragraphs                    |
-| **Simplified (8th Grade)**  | Short sentences, common words, simple structures                                |
-| **Medieval Bard**           | Rewrites text as lyrical, rhyming bardic verse with theatrical, old-world flair |
-| **Wise Galactic Sage**      | Calm, inverted-syntax space-mystic wisdom — compact, reflective, authoritative  |
-| **Unhinged Mode**           | Wildly stressed, conspiratorial, overcaffeinated rant — darkly funny            |
+| Preset                      | Description                                                   |
+| --------------------------- | ------------------------------------------------------------- |
+| **General Professional**    | Neutral business tone, clear and concise                      |
+| **Technical / Engineering** | Preserves jargon, acronyms, and technical terminology         |
+| **Casual / Friendly**       | Warm, approachable, conversational tone                       |
+| **Email / Correspondence**  | Professional email with greeting/sign-off, short paragraphs  |
+| **Simplified (8th Grade)**  | Short sentences, common words, simple structures              |
 
 You can also create, duplicate, and delete custom presets. Each preset has its own toggle settings, custom system prompt, vocabulary list, and optional model override.
 
@@ -218,7 +213,7 @@ You can also create, duplicate, and delete custom presets. Each preset has its o
 │   ┌──────────────────────────────────────┐ │
 │   │ ProPreset → TextProcessor →          │ │
 │   │ OpenAI API                           │ │
-│   │ (8 built-in + custom presets,        │ │
+│   │ (5 built-in + custom presets,        │ │
 │   │  vocabulary, custom prompts)         │ │
 │   └──────────────────────────────────────┘ │
 └────────────────────────────────────────────┘
@@ -240,17 +235,6 @@ Cohere Transcribe supports 14 languages:
 
 ## Antivirus & Anti-Malware Notes
 
-### Windows SmartScreen
-
-Because the installer is not yet signed by a trusted commercial certificate authority, Windows may block it at launch with a **"Windows protected your PC"** SmartScreen dialog. To proceed:
-
-1. Click **More info** in the SmartScreen dialog
-2. Click **Run anyway**
-
-This is expected behavior for unsigned applications from new publishers. The installer does not contain malware — the source code is open and available in this repository.
-
-### Antivirus false positives
-
 Some antivirus products may flag the PyInstaller-packaged `.exe` as suspicious. This is a known false positive common to all PyInstaller applications. You can:
 
 1. Add `C:\Program Files\SpeakEasy AI` to your antivirus exclusion list
@@ -259,3 +243,9 @@ Some antivirus products may flag the PyInstaller-packaged `.exe` as suspicious. 
 ## License
 
 [MIT](LICENSE)
+
+## Acknowledgments
+
+- **Florian** — for coming up with the name *SpeakEasy*
+- **Cohere Labs** — for the [Cohere Transcribe 03-2026](https://huggingface.co/CohereLabs/cohere-transcribe-03-2026) speech recognition model
+- **Anthropic (Claude) and OpenAI (ChatGPT/Copilot)** — this application was developed with AI coding assistance from Anthropic (Claude) and OpenAI (ChatGPT/Copilot)
