@@ -15,7 +15,7 @@ SpeakEasy AI is built around a single goal: accurate transcription that you can 
 | **Cohere Transcribe 03-2026**           | **5.42%**             |
 | Whisper Large v3                        | 7.44%                 |
 
-*Word Error Rate (WER) measures the percentage of words transcribed incorrectly — lower is better. Based on publicly reported benchmark results.*
+*Word Error Rate (WER) measures the percentage of words transcribed incorrectly — lower is better. Based on publicly reported benchmark results. You can verify and explore the full rankings on the [Open ASR Leaderboard](https://huggingface.co/spaces/hf-audio/open_asr_leaderboard).*
 
 The difference corresponds to roughly **27% fewer transcription errors** relative to Whisper Large v3. In practice, that means less time correcting output and more accurate text the first time.
 
@@ -247,5 +247,6 @@ Some antivirus products may flag the PyInstaller-packaged `.exe` as suspicious. 
 ## Acknowledgments
 
 - **Florian** — for coming up with the name *SpeakEasy*
+- **Joel, Carter, and Rollo** — for the *Professional Mode* idea
 - **Cohere Labs** — for the [Cohere Transcribe 03-2026](https://huggingface.co/CohereLabs/cohere-transcribe-03-2026) speech recognition model
 - **Anthropic (Claude) and OpenAI (ChatGPT/Copilot)** — this application was developed with AI coding assistance from Anthropic (Claude) and OpenAI (ChatGPT/Copilot)
