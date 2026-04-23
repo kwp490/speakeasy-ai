@@ -40,12 +40,16 @@ class BuildSystemPromptTests(unittest.TestCase):
         self.assertIn("legal tone", prompt.lower())
         self.assertNotIn("professional and neutral", prompt.lower())
 
-    def test_custom_prompt_included_when_tone_off(self):
+    def test_custom_prompt_used_directly_grammar_not_appended(self):
+        # When a custom prompt is provided it is used as-is; generic grammar
+        # rules are NOT appended, since appending them would conflict with
+        # presets that intentionally use unconventional grammar (e.g. inverted
+        # syntax, fragments).
         prompt = _build_system_prompt(
             False, True, False, custom_prompt="Always use Oxford comma."
         )
         self.assertIn("oxford comma", prompt.lower())
-        self.assertIn("grammar", prompt.lower())
+        self.assertNotIn("fix grammar", prompt.lower())
 
     def test_vocabulary_appended(self):
         prompt = _build_system_prompt(

@@ -323,7 +323,18 @@ class ProSettingsDialog(QDialog):
         log.info("Professional Mode settings saved")
 
     def _save_and_accept(self) -> None:
-        self._save_settings()
+        try:
+            self._save_settings()
+        except Exception as exc:
+            log.error("Failed to save Professional Mode settings: %s", exc, exc_info=True)
+            QMessageBox.warning(
+                self,
+                "Settings Not Saved",
+                "Your settings could not be saved to disk:\n\n"
+                f"{exc}\n\n"
+                "Changes will remain active for this session only.\n"
+                "To fix permanently, re-run the installer to repair file permissions.",
+            )
         self.accept()
 
     def _on_apply(self) -> None:

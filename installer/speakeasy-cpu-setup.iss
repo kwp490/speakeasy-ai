@@ -328,7 +328,7 @@ begin
   if FileExists(OldSettings) and (not FileExists(NewSettings)) then
     CopyFile(OldSettings, NewSettings, False);
 
-  { Migrate settings from previous layout (data was under {app}) }
+  // Migrate settings from previous layout (data was under {app})
   OldSettings := ExpandConstant('{app}\config\settings.json');
   if FileExists(OldSettings) and (not FileExists(NewSettings)) then
     CopyFile(OldSettings, NewSettings, False);
@@ -353,7 +353,7 @@ begin
       end;
     end;
 
-  { Migrate models from previous layout (data was under {app}) }
+  // Migrate models from previous layout (data was under {app})
   OldModelsDir := ExpandConstant('{app}\models');
   if DirExists(OldModelsDir) then
     if FindFirst(OldModelsDir + '\*', FindRec) then
@@ -389,6 +389,7 @@ end;
 procedure WriteDefaultSettings;
 var
   SettingsFile, Json: String;
+  ResultCode: Integer;
 begin
   SettingsFile := ExpandConstant('{commonappdata}') + '\SpeakEasy AI\config\settings.json';
   if not FileExists(SettingsFile) then
@@ -396,6 +397,13 @@ begin
     Json := '{' + #13#10 + '  "engine": "cohere",' + #13#10 + '  "device": "cpu"' + #13#10 + '}';
     SaveStringToFile(SettingsFile, Json, False);
   end;
+  { Grant regular users write (Modify) access so the app can save settings without
+    requiring elevation.  Uses the well-known SID for BUILTIN\Users so it works
+    regardless of the Windows display language.  Runs unconditionally so it also
+    repairs permissions on files created by older installer versions. }
+  Exec('icacls.exe',
+       '"' + SettingsFile + '" /grant *S-1-5-32-545:(M)',
+       '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 end;
 
 procedure ConfigureDefenderExclusions;

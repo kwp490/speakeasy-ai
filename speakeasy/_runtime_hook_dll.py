@@ -15,6 +15,15 @@ import sys
 
 _meipass = getattr(sys, "_MEIPASS", None)
 if _meipass is not None and sys.platform == "win32":
+    # Point SSL/httpx to the certifi CA bundle bundled inside _MEIPASS.
+    # collect_data_files('certifi') in the spec copies cacert.pem to
+    # _internal/certifi/cacert.pem; setting SSL_CERT_FILE here ensures
+    # ssl.create_default_context() finds it even before certifi.where() runs.
+    _cacert = os.path.join(_meipass, "certifi", "cacert.pem")
+    if os.path.isfile(_cacert):
+        os.environ.setdefault("SSL_CERT_FILE", _cacert)
+        os.environ.setdefault("REQUESTS_CA_BUNDLE", _cacert)
+
     # Add _MEIPASS itself so VC++ runtimes in _internal/ are findable
     if os.path.isdir(_meipass):
         os.add_dll_directory(_meipass)

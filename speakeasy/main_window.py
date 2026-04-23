@@ -303,6 +303,7 @@ class MainWindow(QMainWindow):
         root.addLayout(status_row_top)
         self._update_global_status()
 
+        # Row 1: output-behaviour toggles
         toggle_row = QHBoxLayout()
         self._chk_auto_copy = QCheckBox("Auto-copy to clipboard")
         self._chk_auto_copy.setChecked(self.settings.auto_copy)
@@ -311,6 +312,14 @@ class MainWindow(QMainWindow):
         self._chk_hotkeys = QCheckBox("Enable global hotkeys")
         self._chk_hotkeys.setChecked(self.settings.hotkeys_enabled)
         self._chk_hotkeys.toggled.connect(self._on_hotkeys_toggled)
+        toggle_row.addWidget(self._chk_auto_copy)
+        toggle_row.addWidget(self._chk_auto_paste)
+        toggle_row.addWidget(self._chk_hotkeys)
+        toggle_row.addStretch()
+        root.addLayout(toggle_row)
+
+        # Row 2: Professional Mode toggle + preset selector
+        pro_row = QHBoxLayout()
         self._chk_professional = QCheckBox("Professional Mode")
         self._chk_professional.setChecked(self.settings.professional_mode)
         self._chk_professional.toggled.connect(self._on_professional_toggled)
@@ -319,13 +328,10 @@ class MainWindow(QMainWindow):
         self._combo_pro_preset.setEnabled(self.settings.professional_mode)
         self._populate_pro_preset_combo()
         self._combo_pro_preset.currentTextChanged.connect(self._on_pro_preset_quick_select)
-        toggle_row.addWidget(self._chk_auto_copy)
-        toggle_row.addWidget(self._chk_auto_paste)
-        toggle_row.addWidget(self._chk_hotkeys)
-        toggle_row.addWidget(self._chk_professional)
-        toggle_row.addWidget(self._combo_pro_preset)
-        toggle_row.addStretch()
-        root.addLayout(toggle_row)
+        pro_row.addWidget(self._chk_professional)
+        pro_row.addWidget(self._combo_pro_preset)
+        pro_row.addStretch()
+        root.addLayout(pro_row)
 
         # History header with contextual Clear button
         history_header = QHBoxLayout()

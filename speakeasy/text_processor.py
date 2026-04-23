@@ -45,25 +45,41 @@ def _build_system_prompt(
 ) -> str:
     """Build the system prompt from the enabled cleanup flags.
 
-    When *custom_prompt* is supplied (from a preset), it replaces the
-    default tone instruction.  *vocabulary* is a comma/newline-separated
-    list of terms that the model must preserve verbatim.
+    When *custom_prompt* is supplied (from a preset), it is a complete
+    standalone system prompt and is used directly without wrapping.
+    Adding generic numbered rules (e.g. "Fix grammar errors.") on top of
+    a persona-based custom prompt produces conflicting instructions —
+    for example, "Fix grammar errors." overrides a preset that intentionally
+    uses inverted grammar or fragmented phrasing.
+
+    *vocabulary* is a comma/newline-separated list of terms that the model
+    must preserve verbatim; it is appended to whichever prompt path is used.
     """
+    vocab_suffix = ""
+    if vocabulary and vocabulary.strip():
+        terms = [
+            t.strip()
+            for t in re.split(r"[,\n]+", vocabulary)
+            if t.strip()
+        ]
+        if terms:
+            term_list = ", ".join(terms)
+            vocab_suffix = f"\n\nPreserve these terms exactly as written: {term_list}"
+
+    # When a complete custom prompt is provided, use it as-is.  Appending
+    # generic fix_grammar / fix_punctuation rules would conflict with presets
+    # that intentionally use unconventional grammar or sentence structure.
+    if custom_prompt and custom_prompt.strip():
+        return custom_prompt.strip() + vocab_suffix
+
+    # No custom prompt — build a simple numbered-rules prompt from flags.
     rules: list[str] = []
     if fix_tone:
-        if custom_prompt and custom_prompt.strip():
-            rules.append(custom_prompt.strip())
-        else:
-            rules.append(
-                "Make the tone professional and neutral. Remove emotional, "
-                "aggressive, or unprofessional language while preserving the "
-                "original meaning and intent."
-            )
-    elif custom_prompt and custom_prompt.strip():
-        # Custom prompt provided but fix_tone is off — still include it
-        # as a general instruction.
-        rules.append(custom_prompt.strip())
-
+        rules.append(
+            "Make the tone professional and neutral. Remove emotional, "
+            "aggressive, or unprofessional language while preserving the "
+            "original meaning and intent."
+        )
     if fix_grammar:
         rules.append("Fix grammar errors.")
     if fix_punctuation:
@@ -81,22 +97,7 @@ def _build_system_prompt(
         "Preserve the original meaning and intent. "
         "Output only the corrected text, nothing else."
     )
-
-    # Vocabulary preservation
-    if vocabulary and vocabulary.strip():
-        # Parse comma/newline-separated terms
-        terms = [
-            t.strip()
-            for t in re.split(r"[,\n]+", vocabulary)
-            if t.strip()
-        ]
-        if terms:
-            term_list = ", ".join(terms)
-            prompt += (
-                f"\n\nPreserve these terms exactly as written: {term_list}"
-            )
-
-    return prompt
+    return prompt + vocab_suffix
 
 
 class TextProcessor:

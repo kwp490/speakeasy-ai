@@ -71,20 +71,88 @@
     installer but compiles much faster.  Intended for dev/test builds.
 
 .EXAMPLE
-    .\installer\Build-Installer.ps1                              # interactive menu
-    .\installer\Build-Installer.ps1 -Mode Build                  # incremental GPU release build
-    .\installer\Build-Installer.ps1 -Mode Build -Fast            # fast GPU dev build
-    .\installer\Build-Installer.ps1 -Mode Build -Variant CPU     # CPU-only build
-    .\installer\Build-Installer.ps1 -Mode Build -Variant Both    # build both variants
-    .\installer\Build-Installer.ps1 -Mode Build -Clean           # force full rebuild
-    .\installer\Build-Installer.ps1 -Mode Build -InnoOnly -Fast  # repackage existing dist/ quickly
-    .\installer\Build-Installer.ps1 -Mode Release                # full release cycle
-    .\installer\Build-Installer.ps1 -Mode Release -Fast          # release with fast compression
-    .\installer\Build-Installer.ps1 -Mode Source                 # run from source
-    .\installer\Build-Installer.ps1 -Mode Source -Clean          # reset dev-temp, run from source
-    .\installer\Build-Installer.ps1 -Mode Source -SkipTests      # skip tests, run from source
-    .\installer\Build-Installer.ps1 -Mode Install                # install latest GPU build
-    .\installer\Build-Installer.ps1 -Mode Install -Variant CPU   # install latest CPU build
+    # --------------------------------------------------------------------------
+    # INTERACTIVE
+    # --------------------------------------------------------------------------
+    .\installer\Build-Installer.ps1
+        # Shows a numbered menu to choose mode and variant. No arguments needed.
+        # Does NOT install or uninstall anything until you select a menu option.
+
+    # --------------------------------------------------------------------------
+    # BUILD  --  Produces installer .exe files in installer\Output\.
+    #            Runs the test suite first. NO system changes (no install/uninstall).
+    # --------------------------------------------------------------------------
+    .\installer\Build-Installer.ps1 -Mode Build
+        # Runs tests, then builds the GPU installer (PyInstaller + Inno Setup).
+        # Skips PyInstaller if source files are unchanged since last build (hash cache).
+
+    .\installer\Build-Installer.ps1 -Mode Build -Variant CPU
+        # Same as above but builds the CPU (no CUDA) installer instead.
+
+    .\installer\Build-Installer.ps1 -Mode Build -Variant Both
+        # Builds the GPU installer first, then the CPU installer sequentially.
+        # Produces two .exe files in installer\Output\.
+
+    .\installer\Build-Installer.ps1 -Mode Build -Clean
+        # Forces a full PyInstaller rebuild (ignores the hash cache), then packages.
+        # Use when PyInstaller output may be stale despite no source changes.
+
+    .\installer\Build-Installer.ps1 -Mode Build -Fast
+        # Builds with fast Inno Setup compression -- larger .exe, much faster compile.
+        # Useful for dev/test iterations where file size does not matter.
+
+    .\installer\Build-Installer.ps1 -Mode Build -InnoOnly -Fast
+        # Skips PyInstaller entirely and re-runs Inno Setup on the existing dist\ folder.
+        # Use when only installer scripts or assets changed (not Python source).
+
+    # --------------------------------------------------------------------------
+    # RELEASE  --  Full cycle: build -> UNINSTALL old -> INSTALL new -> launch.
+    #              Requires admin (auto-elevates). Models are always preserved.
+    # --------------------------------------------------------------------------
+    .\installer\Build-Installer.ps1 -Mode Release
+        # Runs tests, builds the GPU installer (release compression), silently
+        # UNINSTALLS the existing SpeakEasy AI, INSTALLS the new build, validates
+        # the frozen bundle, then launches speakeasy.exe.
+
+    .\installer\Build-Installer.ps1 -Mode Release -Variant CPU
+        # Same full release cycle but builds, installs, and launches the CPU variant.
+
+    .\installer\Build-Installer.ps1 -Mode Release -Fast
+        # Release cycle with fast Inno Setup compression (dev/test use).
+        # Still UNINSTALLS old and INSTALLS new -- just a larger installer file.
+
+    .\installer\Build-Installer.ps1 -Mode Release -SkipTests
+        # Release cycle without running the test suite first.
+
+    .\installer\Build-Installer.ps1 -Mode Release -Clean
+        # Release cycle with a forced full PyInstaller rebuild before packaging.
+
+    # --------------------------------------------------------------------------
+    # INSTALL  --  UNINSTALL old -> INSTALL a pre-built .exe -> launch.
+    #              Run 'Mode Build' first to produce the installer.
+    #              Requires admin (auto-elevates). Models are always preserved.
+    # --------------------------------------------------------------------------
+    .\installer\Build-Installer.ps1 -Mode Install
+        # Finds the latest GPU installer in installer\Output\, silently UNINSTALLS
+        # any existing version, INSTALLS the new build, then launches speakeasy.exe.
+
+    .\installer\Build-Installer.ps1 -Mode Install -Variant CPU
+        # Same as above but finds and installs the latest CPU installer instead.
+
+    # --------------------------------------------------------------------------
+    # SOURCE  --  Runs the app directly from source code. NO install or uninstall.
+    #             Any installed release build is completely untouched.
+    # --------------------------------------------------------------------------
+    .\installer\Build-Installer.ps1 -Mode Source
+        # Runs tests, then launches the app from source using dev-temp\ for
+        # config, logs, and temp files. Nothing is installed or changed system-wide.
+
+    .\installer\Build-Installer.ps1 -Mode Source -Clean
+        # Wipes dev-temp config/logs/temp for a clean slate, then runs from source.
+        # Use when stale dev settings are causing unexpected behavior.
+
+    .\installer\Build-Installer.ps1 -Mode Source -SkipTests
+        # Skips the test suite and launches from source immediately.
 
 .NOTES
     Run from the repository root.

@@ -716,3 +716,92 @@ class TestCpuSpecStripPatterns(unittest.TestCase):
                 )
 
 
+class TestCertifiSslBundle(unittest.TestCase):
+    """certifi's CA bundle must be collected so OpenAI/httpx SSL works in frozen builds.
+
+    Without collect_data_files('certifi'), ssl.create_default_context(cafile=certifi.where())
+    raises FileNotFoundError in the frozen app because cacert.pem is not copied by
+    PyInstaller's import analysis alone.
+    """
+
+    def _read_spec(self, name: str) -> str:
+        path = _REPO_ROOT / name
+        self.assertTrue(path.is_file(), f"{name} not found")
+        return path.read_text(encoding="utf-8")
+
+    def test_gpu_spec_collects_certifi_data(self):
+        """speakeasy.spec must call collect_data_files('certifi')."""
+        spec = self._read_spec("speakeasy.spec")
+        self.assertIn(
+            "collect_data_files('certifi')",
+            spec,
+            "speakeasy.spec must include collect_data_files('certifi') — "
+            "omitting it causes FileNotFoundError when OpenAI/httpx creates an SSL context.",
+        )
+
+    def test_cpu_spec_collects_certifi_data(self):
+        """speakeasy-cpu.spec must call collect_data_files('certifi')."""
+        spec = self._read_spec("speakeasy-cpu.spec")
+        self.assertIn(
+            "collect_data_files('certifi')",
+            spec,
+            "speakeasy-cpu.spec must include collect_data_files('certifi') — "
+            "omitting it causes FileNotFoundError when OpenAI/httpx creates an SSL context.",
+        )
+
+    def test_runtime_hook_sets_ssl_cert_file(self):
+        """Runtime hook must set SSL_CERT_FILE to the bundled certifi CA bundle."""
+        hook = _SPEAKEASY_PKG / "_runtime_hook_dll.py"
+        source = hook.read_text(encoding="utf-8")
+        self.assertIn(
+            "SSL_CERT_FILE",
+            source,
+            "_runtime_hook_dll.py must set SSL_CERT_FILE so httpx finds the "
+            "certifi CA bundle before any SSL connection is attempted.",
+        )
+        self.assertIn(
+            "cacert.pem",
+            source,
+            "_runtime_hook_dll.py must reference cacert.pem to locate the "
+            "certifi CA bundle inside _MEIPASS.",
+        )
+
+    def test_runtime_hook_sets_requests_ca_bundle(self):
+        """Runtime hook must also set REQUESTS_CA_BUNDLE for requests-based clients."""
+        hook = _SPEAKEASY_PKG / "_runtime_hook_dll.py"
+        source = hook.read_text(encoding="utf-8")
+        self.assertIn(
+            "REQUESTS_CA_BUNDLE",
+            source,
+            "_runtime_hook_dll.py must set REQUESTS_CA_BUNDLE alongside SSL_CERT_FILE.",
+        )
+
+    def test_strip_patterns_do_not_remove_certifi_bundle(self):
+        """Certifi's cacert.pem must not be accidentally stripped from the build."""
+        spec = self._read_spec("speakeasy.spec")
+        raw_patterns = re.findall(r"_re\.compile\(r'([^']+)'", spec)
+        patterns = [re.compile(p, re.I) for p in raw_patterns]
+        cacert_entry = "certifi/cacert.pem"
+        for pat in patterns:
+            self.assertIsNone(
+                pat.search(cacert_entry),
+                f"Strip r'{pat.pattern}' would accidentally remove certifi/cacert.pem.",
+            )
+
+    def test_certifi_importable(self):
+        """certifi must be importable (sanity check that it is installed)."""
+        try:
+            import certifi
+            bundle = certifi.where()
+            self.assertTrue(
+                os.path.isfile(bundle),
+                f"certifi.where() returned '{bundle}' which does not exist — "
+                "run 'uv sync' to ensure certifi is installed.",
+            )
+        except ImportError:
+            self.fail(
+                "certifi is not importable — add it to pyproject.toml dependencies "
+                "or ensure it is pulled in transitively via openai/httpx."
+            )
+
+

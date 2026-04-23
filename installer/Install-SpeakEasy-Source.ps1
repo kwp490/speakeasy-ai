@@ -158,7 +158,6 @@ function Assert-ValidInstallLayout {
 
     $requiredPaths = @(
         (Join-Path $InstallRoot "pyproject.toml"),
-        (Join-Path $InstallRoot "download_model.py"),
         (Join-Path $InstallRoot "speakeasy\__main__.py")
     )
     foreach ($path in $requiredPaths) {

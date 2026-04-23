@@ -35,6 +35,14 @@ for _subpkg, _kwargs in (
     except Exception:
         pass
 
+# Collect certifi's CA bundle so httpx/OpenAI SSL works in the frozen build.
+# Without this, ssl.create_default_context(cafile=certifi.where()) raises
+# FileNotFoundError because cacert.pem is not copied by import analysis alone.
+try:
+    datas += collect_data_files('certifi')
+except Exception:
+    pass
+
 a = Analysis(
     ['speakeasy/__main__.py'],
     pathex=[],

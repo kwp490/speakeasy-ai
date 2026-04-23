@@ -297,8 +297,19 @@ class SettingsDialog(QDialog):
         s.clear_logs_on_exit = self._clear_logs_on_exit.isChecked()
         s.mic_device_index = self._mic_combo.currentData()
 
-        s.save()
-        log.info("Settings saved")
+        try:
+            s.save()
+            log.info("Settings saved")
+        except Exception as exc:
+            log.error("Failed to save settings: %s", exc, exc_info=True)
+            QMessageBox.warning(
+                self,
+                "Settings Not Saved",
+                "Your settings could not be saved to disk:\n\n"
+                f"{exc}\n\n"
+                "Changes will remain active for this session only.\n"
+                "To fix permanently, re-run the installer to repair file permissions.",
+            )
         self.accept()
 
     def _on_device_changed(self, device: str) -> None:
