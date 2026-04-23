@@ -5,6 +5,17 @@ All notable changes to SpeakEasy AI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.3] - Permission Fix
+
+### Fixed
+- **Log directory permissions**: Installer now grants the `Users` group write access
+  to all `C:\ProgramData\SpeakEasy AI` subdirectories (`logs`, `config`, `temp`, `models`),
+  fixing a `PermissionError: [Errno 13]` crash on first launch for standard (non-admin) accounts
+- **Logging fallback**: App no longer crashes if the log file is unwritable; falls back to
+  console-only logging so the application always starts
+
+---
+
 ## [0.3.1] - CPU Build Fix
 
 ### Fixed

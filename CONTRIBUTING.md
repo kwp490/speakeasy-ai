@@ -58,7 +58,7 @@ After building the binary, compile the Inno Setup installer:
 ```bash
 # Requires Inno Setup 6.x — https://jrsoftware.org/isdl.php
 iscc installer\speakeasy-setup.iss
-# Output: installer/Output/SpeakEasy-AI-Setup-0.3.2.exe
+# Output: installer/Output/SpeakEasy-AI-Setup-0.3.3.exe
 ```
 
 Or run the combined build script:
