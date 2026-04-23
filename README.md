@@ -64,8 +64,8 @@ For developers or users who prefer to build and run from source. Requires [Git](
 irm https://astral.sh/uv/install.ps1 | iex
 
 # 2. Clone and install dependencies
-git clone https://github.com/kwp490/SpeakEasyAI.git
-cd SpeakEasyAI
+git clone https://github.com/kwp490/speakeasy-ai.git
+cd speakeasy-ai
 uv sync
 
 # 3. Download the model and launch

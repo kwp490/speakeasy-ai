@@ -320,6 +320,45 @@ class TestInstallerHandlesGatedRepos(unittest.TestCase):
         )
 
 
+class TestReadmeLinks(unittest.TestCase):
+    """README.md download links must use the correct GitHub repo slug and current version."""
+
+    _REPO_SLUG = "kwp490/speakeasy-ai"
+
+    @classmethod
+    def setUpClass(cls):
+        cls.readme = _read("README.md")
+        pyproject = _read("pyproject.toml")
+        m = re.search(r'version\s*=\s*"([^"]+)"', pyproject)
+        assert m, "Could not parse version from pyproject.toml"
+        cls.version = m.group(1)
+
+    def test_no_wrong_repo_slug_in_links(self):
+        """No github.com URL in README should use a repo name other than kwp490/speakeasy-ai."""
+        wrong = re.findall(
+            r"https://github\.com/kwp490/(?!speakeasy-ai(?:\.git)?[/\s)\]])([\w.-]+)",
+            self.readme,
+        )
+        self.assertEqual(
+            wrong, [],
+            f"README contains GitHub URLs with wrong repo name(s): {wrong}. "
+            f"Expected repo slug: '{self._REPO_SLUG}'",
+        )
+
+    def test_download_links_use_current_version(self):
+        """Installer download links in README must match the current package version."""
+        links = re.findall(
+            r"https://github\.com/[^/]+/[^/]+/releases/download/v([^/]+)/",
+            self.readme,
+        )
+        for ver in links:
+            self.assertEqual(
+                ver, self.version,
+                f"README download link uses version '{ver}' but pyproject.toml "
+                f"is at version '{self.version}'. Update the README links.",
+            )
+
+
 if __name__ == "__main__":
     unittest.main()
 
