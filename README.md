@@ -35,13 +35,13 @@ There are two ways to install SpeakEasy AI: download the pre-built installer (re
 
 ### Option 1 — Installer (recommended)
 
-| Variant               | Download                                          | Size    | Requirements                                 |
-| --------------------- | ------------------------------------------------- | ------- | -------------------------------------------- |
-| **GPU** (recommended) | [SpeakEasy-AI-Setup-0.3.2.exe][gpu-installer]     | 1.74 GB | NVIDIA GPU (RTX 30+, 6 GB VRAM, Driver 525+) |
-| **CPU**               | [SpeakEasy-AI-CPU-Setup-0.3.2.exe][cpu-installer] | 187 MB  | No GPU required (slower inference)           |
+| Variant               | Download                                         | Requirements                                 |
+| --------------------- | ------------------------------------------------ | -------------------------------------------- |
+| **GPU** (recommended) | [SpeakEasy-AI-Setup-0.3.2.exe][gpu-installer]     | NVIDIA GPU (RTX 30+, 6 GB VRAM, Driver 525+) |
+| **CPU**               | [SpeakEasy-AI-CPU-Setup-0.3.2.exe][cpu-installer] | No GPU required (slower inference)           |
 
-[gpu-installer]: https://github.com/kwp490/speakeasy-ai/releases/download/v0.3.2/SpeakEasy-AI-Setup-0.3.2.exe
-[cpu-installer]: https://github.com/kwp490/speakeasy-ai/releases/download/v0.3.2/SpeakEasy-AI-CPU-Setup-0.3.2.exe
+[gpu-installer]: https://github.com/kwp490/SpeakEasyAI/releases/download/v0.3.2/SpeakEasy-AI-Setup-0.3.2.exe
+[cpu-installer]: https://github.com/kwp490/SpeakEasyAI/releases/download/v0.3.2/SpeakEasy-AI-CPU-Setup-0.3.2.exe
 
 Double-click the installer and follow the prompts. No Python, no command line required. The installer will:
 

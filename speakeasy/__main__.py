@@ -82,13 +82,21 @@ def _setup_logging() -> None:
     except (io.UnsupportedOperation, OSError):
         _console_stream = None
 
-    handlers = [
-        logging.handlers.RotatingFileHandler(
-            log_path, maxBytes=2 * 1024 * 1024, backupCount=2, encoding="utf-8"
-        ),
-    ]
+    handlers: list[logging.Handler] = []
+    try:
+        handlers.append(
+            logging.handlers.RotatingFileHandler(
+                log_path, maxBytes=2 * 1024 * 1024, backupCount=2, encoding="utf-8"
+            )
+        )
+    except OSError:
+        # Log directory not writable (e.g. restrictive permissions after install).
+        # Fall back to console-only logging so the app still starts.
+        log_path = "<unavailable>"
     if _console_stream is not None:
         handlers.append(logging.StreamHandler(_console_stream))
+    if not handlers:
+        handlers.append(logging.NullHandler())
 
     logging.basicConfig(
         level=logging.INFO,

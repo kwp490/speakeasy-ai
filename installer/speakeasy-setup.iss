@@ -64,11 +64,11 @@ Source: "..\dist\speakeasy\*"; DestDir: "{app}"; Flags: ignoreversion recursesub
 Source: "cohere-model-setup.ps1"; DestDir: "{app}"; Flags: ignoreversion
 
 [Dirs]
-Name: "{commonappdata}\SpeakEasy AI"
-Name: "{commonappdata}\SpeakEasy AI\models"
-Name: "{commonappdata}\SpeakEasy AI\config"
-Name: "{commonappdata}\SpeakEasy AI\logs"
-Name: "{commonappdata}\SpeakEasy AI\temp"
+Name: "{commonappdata}\SpeakEasy AI";              Permissions: users-modify
+Name: "{commonappdata}\SpeakEasy AI\models";       Permissions: users-modify
+Name: "{commonappdata}\SpeakEasy AI\config";       Permissions: users-modify
+Name: "{commonappdata}\SpeakEasy AI\logs";         Permissions: users-modify
+Name: "{commonappdata}\SpeakEasy AI\temp";         Permissions: users-modify
 
 [Icons]
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; \
