@@ -14,7 +14,7 @@ authors = [{ name = "kwp490" }]
 dependencies = [
     "PySide6>=6.6,<7",
     "sounddevice>=0.4",
-    "soundfile>=0.12",
+    "soundfile>=0.13.1",
     "numpy>=1.24",
     "nvidia-ml-py>=12.0; sys_platform == 'win32'",
     "openai>=1.0",
