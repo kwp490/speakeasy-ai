@@ -5,6 +5,34 @@ All notable changes to SpeakEasy AI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - Per-User Logs & Hardening
+
+### Changed
+- **Per-user log directory**: Logs now write to `%LOCALAPPDATA%\SpeakEasy AI\logs`
+  instead of the shared `%ProgramData%` path, preventing cross-user log access
+  on shared machines. Dev/source mode (`SPEAKEASY_HOME`) is unchanged.
+- **Audio resampling**: Replaced manual linear-interpolation resampler with
+  `librosa.resample()` for higher-quality sample-rate conversion.
+
+### Security
+- **HuggingFace token masking**: The model-download token dialog now uses
+  password echo mode so the token is not visible on screen.
+- **Dependency auditing**: CI workflow runs `pip-audit --strict` on every push
+  and PR to catch known-vulnerable dependencies.
+- **Dependabot**: Automated weekly dependency update PRs for pip packages and
+  GitHub Actions.
+
+### Added
+- **`RELEASE.md`**: Step-by-step release checklist (version bump → tag → publish).
+- **`.github/dependabot.yml`**: Automated dependency update configuration.
+- **`pip-audit`** added to dev dependencies.
+
+### Removed
+- Installer no longer creates or manages a shared `logs/` directory under
+  `%ProgramData%\SpeakEasy AI` — log storage is now per-user.
+
+---
+
 ## [0.5.0] - Streaming Partials
 
 ### Added

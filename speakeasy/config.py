@@ -2,9 +2,11 @@ r"""
 Configuration persistence for SpeakEasy AI.
 
 App binaries live under the install directory (default C:\Program Files\SpeakEasy AI).
-Mutable data (config, models, logs, temp) lives under %ProgramData%\SpeakEasy AI so
-that Program Files binaries stay read-only.  In dev/source mode (SPEAKEASY_HOME set),
-all data is kept under INSTALL_DIR for a self-contained dev environment.
+Mutable data (config, models, temp) lives under %ProgramData%\SpeakEasy AI so
+that Program Files binaries stay read-only.  Logs are stored per-user under
+%LOCALAPPDATA%\SpeakEasy AI\logs to prevent cross-user access on shared machines.
+In dev/source mode (SPEAKEASY_HOME set), all data is kept under INSTALL_DIR for a
+self-contained dev environment.
 """
 
 from __future__ import annotations
@@ -35,8 +37,15 @@ DEFAULT_CONFIG_DIR = _DATA_DIR / "config"
 DEFAULT_CONFIG_FILE = DEFAULT_CONFIG_DIR / "settings.json"
 DEFAULT_PRESETS_DIR = DEFAULT_CONFIG_DIR / "presets"
 DEFAULT_MODELS_DIR = str(_DATA_DIR / "models")
-DEFAULT_LOG_DIR = _DATA_DIR / "logs"
-DEFAULT_TEMP_DIR = _DATA_DIR / "temp"
+
+# Logs go to a per-user directory (%LOCALAPPDATA%\SpeakEasy AI\logs) in production
+# to prevent cross-user log access on shared machines.  In dev mode (SPEAKEASY_HOME)
+# logs stay under INSTALL_DIR for a self-contained dev environment.
+DEFAULT_LOG_DIR = (
+    _DATA_DIR / "logs"
+    if "SPEAKEASY_HOME" in os.environ
+    else Path(os.environ.get("LOCALAPPDATA", "")) / "SpeakEasy AI" / "logs"
+)
 
 
 @dataclass

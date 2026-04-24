@@ -16,15 +16,13 @@ def ensure_16khz(audio: np.ndarray, source_sr: int) -> np.ndarray:
     """Resample audio to 16 kHz if needed.  Input must be 1D float32."""
     if source_sr == TARGET_SR:
         return audio
-    duration = len(audio) / source_sr
-    target_len = int(duration * TARGET_SR)
-    if target_len == 0:
+    if len(audio) == 0:
         return np.array([], dtype=np.float32)
-    indices = np.linspace(0, len(audio) - 1, target_len)
-    left = np.floor(indices).astype(int)
-    right = np.minimum(left + 1, len(audio) - 1)
-    frac = (indices - left).astype(np.float32)
-    return audio[left] * (1.0 - frac) + audio[right] * frac
+    import librosa
+
+    return librosa.resample(audio, orig_sr=source_sr, target_sr=TARGET_SR).astype(
+        np.float32
+    )
 
 
 def chunk_audio(

@@ -1383,13 +1383,14 @@ class MainWindow(QMainWindow):
 
     def _run_source_model_download(self) -> bool:
         """Collect a HuggingFace token via dialog and download directly."""
-        from PySide6.QtWidgets import QInputDialog
+        from PySide6.QtWidgets import QInputDialog, QLineEdit
 
         token, ok = QInputDialog.getText(
             self,
             "HuggingFace Token",
             "Paste your HuggingFace access token\n"
             "(Read permission, from https://huggingface.co/settings/tokens):",
+            QLineEdit.EchoMode.Password,
         )
         if not ok or not token.strip():
             self._log_ui("Model download cancelled — no token provided", error=True)

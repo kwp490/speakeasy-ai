@@ -14,7 +14,7 @@
     If -Variant is not specified, the installer prompts interactively.
 
     Installs everything to C:\Program Files\SpeakEasy AI\ (binaries, venv).
-    Mutable data (models, config, logs, temp) is stored under C:\ProgramData\SpeakEasy AI\
+    Mutable data (models, config, temp) is stored under C:\ProgramData\SpeakEasy AI\
     so the Program Files tree remains read-only for non-admin users.
 
 .PARAMETER Variant
@@ -41,7 +41,7 @@ $InstallDir = "C:\Program Files\SpeakEasy AI"
 $DataDir   = "$env:PROGRAMDATA\SpeakEasy AI"
 $ModelsDir = "$DataDir\models"
 $ConfigDir = "$DataDir\config"
-$LogsDir   = "$DataDir\logs"
+$LogsDir   = "$env:LOCALAPPDATA\SpeakEasy AI\logs"
 $TempDir   = "$DataDir\temp"
 $RepoName = Split-Path -Leaf $PWD.Path
 
@@ -613,8 +613,9 @@ Write-Ok "Default engine set to '$defaultEngine', device set to '$defaultDevice'
 
 # â”€â”€ Set permissions (current user gets Modify on install dir) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Write-Step "Checking directory permissions..."
-# Data dirs are under %ProgramData% which is writable by authenticated users
+# Data dirs under %ProgramData% are writable by authenticated users
 # by default — no ACL changes are required.
+# Logs are under %LOCALAPPDATA% (per-user) so no shared ACL concern.
 # Verify the data directories are accessible.
 foreach ($dir in @($ModelsDir, $ConfigDir, $LogsDir, $TempDir)) {
     if (Test-Path $dir) {

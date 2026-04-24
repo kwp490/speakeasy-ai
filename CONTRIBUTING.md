@@ -58,7 +58,7 @@ After building the binary, compile the Inno Setup installer:
 ```bash
 # Requires Inno Setup 6.x — https://jrsoftware.org/isdl.php
 iscc installer\speakeasy-setup.iss
-# Output: installer/Output/SpeakEasy-AI-Setup-0.5.0.exe
+# Output: installer/Output/SpeakEasy-AI-Setup-0.5.1.exe
 ```
 
 Or run the combined build script:
@@ -75,14 +75,7 @@ AIM Toolkit supersedes ImDisk Toolkit, which has compatibility issues on recent 
 
 ## Creating a Release
 
-The README download link targets GitHub's latest published release. To publish a new installer release:
-
-```bash
-git tag v0.3.0
-git push origin v0.3.0
-```
-
-Pushing a `v*` tag triggers [.github/workflows/release.yml](.github/workflows/release.yml), which builds the installer, uploads the `.exe` and `SHA256SUMS.txt`, and publishes the GitHub Release.
+See [RELEASE.md](RELEASE.md) for the full version-bump → tag → publish checklist.
 
 ## Filing Issues
 

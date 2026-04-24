@@ -21,7 +21,7 @@
 ; ─────────────────────────────────────────────────────────────────────────────
 
 #define MyAppName "SpeakEasy AI"
-#define MyAppVersion "0.5.0"
+#define MyAppVersion "0.5.1"
 #define MyAppPublisher "kwp490"
 #define MyAppURL "https://github.com/kwp490/SpeakEasyAI"
 #define MyAppExeName "speakeasy.exe"
@@ -72,7 +72,6 @@ Source: "cohere-model-setup.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Name: "{commonappdata}\SpeakEasy AI";              Permissions: users-modify
 Name: "{commonappdata}\SpeakEasy AI\models";       Permissions: users-modify
 Name: "{commonappdata}\SpeakEasy AI\config";       Permissions: users-modify
-Name: "{commonappdata}\SpeakEasy AI\logs";         Permissions: users-modify
 Name: "{commonappdata}\SpeakEasy AI\temp";         Permissions: users-modify
 
 [Icons]
@@ -91,7 +90,6 @@ Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; \
     Flags: nowait postinstall skipifsilent; WorkingDir: "{app}"
 
 [UninstallDelete]
-Type: filesandordirs; Name: "{commonappdata}\SpeakEasy AI\logs"
 Type: filesandordirs; Name: "{commonappdata}\SpeakEasy AI\temp"
 Type: filesandordirs; Name: "{commonappdata}\SpeakEasy AI\config"
 
@@ -121,12 +119,12 @@ function SetEnvironmentVariable(Name, Value: String): Boolean;
   external 'SetEnvironmentVariableW@kernel32.dll stdcall';
 
 { Called before file extraction.  Detects an existing install and cleans
-  config/logs/temp so upgrades always start with fresh settings.
+  config/temp so upgrades always start with fresh settings.
   Silent mode: auto-clean.  Interactive mode: prompt Clean vs Repair.
   Models are always preserved. }
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
-  AppDir, ConfigDir, LogsDir, TempDir: String;
+  AppDir, ConfigDir, TempDir: String;
   DoClean: Boolean;
   ButtonLabels: TArrayOfString;
 begin
@@ -134,7 +132,6 @@ begin
   CleanInstall := False;
   AppDir   := ExpandConstant('{app}');
   ConfigDir := ExpandConstant('{commonappdata}') + '\SpeakEasy AI\config';
-  LogsDir   := ExpandConstant('{commonappdata}') + '\SpeakEasy AI\logs';
   TempDir   := ExpandConstant('{commonappdata}') + '\SpeakEasy AI\temp';
 
   { Only act if there is an existing install with a config directory }
@@ -149,7 +146,7 @@ begin
     ButtonLabels[0] := 'Clean Install';
     ButtonLabels[1] := 'Repair Install';
     DoClean := (TaskDialogMsgBox('An existing SpeakEasy AI installation was detected.',
-                        'Clean Install — remove old settings, logs and temp files (recommended).' + #13#10 +
+                        'Clean Install — remove old settings and temp files (recommended).' + #13#10 +
                         'Repair Install — keep existing settings and overwrite application files only.',
                         mbConfirmation, MB_YESNO, ButtonLabels, 0) = IDYES);
   end;
@@ -158,7 +155,6 @@ begin
   begin
     CleanInstall := True;
     DelTree(ConfigDir, True, True, True);
-    DelTree(LogsDir,  True, True, True);
     DelTree(TempDir,  True, True, True);
   end;
 end;
