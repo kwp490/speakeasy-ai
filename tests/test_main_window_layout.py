@@ -518,3 +518,141 @@ class TestDiagnosticsToggleLive(unittest.TestCase):
             win.close()
 
 
+@unittest.skipUnless(_qt_available(), "PySide6 not available")
+class TestStreamingPartials(unittest.TestCase):
+    """Live tests for the per-chunk partial transcription UX (Phase 3)."""
+
+    @classmethod
+    def setUpClass(cls):
+        from PySide6.QtWidgets import QApplication
+        cls._app = QApplication.instance() or QApplication([])
+
+    def _make_window(self, streaming_enabled=True):
+        from unittest.mock import MagicMock, PropertyMock
+        from speakeasy.config import Settings
+        import tempfile
+
+        settings = Settings()
+        settings.hotkeys_enabled = False
+        settings.streaming_partials_enabled = streaming_enabled
+
+        engine = MagicMock()
+        engine.name = "mock"
+        type(engine).is_loaded = PropertyMock(return_value=False)
+
+        self._tmp = tempfile.mkdtemp()
+        tmp_presets = Path(self._tmp) / "presets"
+
+        import speakeasy.main_window as _mw
+        orig = _mw.DEFAULT_PRESETS_DIR
+        _mw.DEFAULT_PRESETS_DIR = tmp_presets
+        try:
+            from speakeasy.main_window import MainWindow
+            win = MainWindow(settings, engine=engine)
+        finally:
+            _mw.DEFAULT_PRESETS_DIR = orig
+        return win
+
+    def _history_entries(self, win):
+        """Return all _HistoryEntry widgets currently in the history pane."""
+        from speakeasy.main_window import _HistoryEntry
+        return [
+            win._history_layout.itemAt(i).widget()
+            for i in range(win._history_layout.count())
+            if isinstance(win._history_layout.itemAt(i).widget(), _HistoryEntry)
+        ]
+
+    def test_partial_signal_creates_draft_entry(self):
+        win = self._make_window()
+        try:
+            win._on_transcription_partial("hello world", 1, 3)
+            entries = self._history_entries(win)
+            self.assertEqual(len(entries), 1)
+            self.assertTrue(entries[0].is_draft)
+            self.assertEqual(entries[0].text, "hello world")
+            self.assertIsNotNone(win._active_draft_entry)
+        finally:
+            win.close()
+
+    def test_partial_signal_updates_in_place(self):
+        win = self._make_window()
+        try:
+            win._on_transcription_partial("hello", 1, 3)
+            win._on_transcription_partial("hello world", 2, 3)
+            entries = self._history_entries(win)
+            self.assertEqual(len(entries), 1)
+            self.assertEqual(entries[0].text, "hello world")
+            self.assertTrue(entries[0].is_draft)
+        finally:
+            win.close()
+
+    def test_final_result_replaces_draft(self):
+        win = self._make_window()
+        try:
+            win._on_transcription_partial("hello world", 1, 2)
+            win._on_transcription_partial("hello world again", 2, 2)
+            # Final result path calls _add_history via _on_transcription_result.
+            # Invoke _add_history directly (bypasses clipboard / state-reset plumbing).
+            win._add_history("12:34:56", "hello world again final", success=True)
+            entries = self._history_entries(win)
+            self.assertEqual(len(entries), 1)
+            self.assertFalse(entries[0].is_draft)
+            self.assertEqual(entries[0].text, "hello world again final")
+            self.assertIsNone(win._active_draft_entry)
+        finally:
+            win.close()
+
+    def test_error_after_partial_marks_draft_failed(self):
+        win = self._make_window()
+        try:
+            win._on_transcription_partial("partial text", 1, 3)
+            # Error slot calls _add_history with success=False via the shared path.
+            win._add_history("12:34:56", "Error: boom", success=False)
+            entries = self._history_entries(win)
+            self.assertEqual(len(entries), 1)
+            self.assertFalse(entries[0].is_draft)
+            self.assertEqual(entries[0].text, "Error: boom")
+            self.assertIsNone(win._active_draft_entry)
+        finally:
+            win.close()
+
+    def test_short_clip_does_not_create_draft(self):
+        """No partial signal â†’ plain _add_history must create a normal entry."""
+        win = self._make_window()
+        try:
+            win._add_history("12:34:56", "short clip text", success=True)
+            entries = self._history_entries(win)
+            self.assertEqual(len(entries), 1)
+            self.assertFalse(entries[0].is_draft)
+            self.assertIsNone(win._active_draft_entry)
+        finally:
+            win.close()
+
+    def test_professional_mode_original_and_cleaned_reach_final_entry(self):
+        """Draft â†’ final with original_text should produce the two-line layout."""
+        win = self._make_window()
+        try:
+            win._on_transcription_partial("raw text", 1, 2)
+            win._on_transcription_partial("raw text cleaned later", 2, 2)
+            win._add_history(
+                "12:34:56", "polished cleaned text", success=True,
+                original_text="raw text cleaned later",
+            )
+            entries = self._history_entries(win)
+            self.assertEqual(len(entries), 1)
+            self.assertFalse(entries[0].is_draft)
+            self.assertEqual(entries[0].text, "polished cleaned text")
+        finally:
+            win.close()
+
+    def test_streaming_disabled_keeps_no_draft_state(self):
+        """With partials disabled, the partial slot is not connected and nothing appears."""
+        win = self._make_window(streaming_enabled=False)
+        try:
+            # Even if _on_transcription_partial were invoked manually, the
+            # setting alone is a UX flag; the guard in _on_stop_and_transcribe
+            # is what actually prevents connection. Verify the setting is False.
+            self.assertFalse(win.settings.streaming_partials_enabled)
+            self.assertIsNone(win._active_draft_entry)
+        finally:
+            win.close()

@@ -59,10 +59,20 @@ class SettingsConfigTests(unittest.TestCase):
         self.assertTrue(s.auto_paste)
         self.assertTrue(s.hotkeys_enabled)
         self.assertTrue(s.punctuation)
+        # Streaming partial transcription defaults to on.
+        self.assertTrue(s.streaming_partials_enabled)
         # Professional Mode defaults
         self.assertFalse(s.professional_mode)
         self.assertEqual(s.pro_active_preset, "General Professional")
         self.assertFalse(s.store_api_key)
+
+    def test_streaming_partials_round_trip(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "settings.json"
+            settings = Settings(streaming_partials_enabled=False)
+            settings.save(config_path)
+            loaded = Settings.load(config_path)
+            self.assertFalse(loaded.streaming_partials_enabled)
 
     def test_load_missing_file_returns_defaults(self):
         loaded = Settings.load(Path("/nonexistent/path/settings.json"))

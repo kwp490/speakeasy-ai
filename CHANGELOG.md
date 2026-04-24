@@ -5,6 +5,25 @@ All notable changes to SpeakEasy AI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - Streaming Partials
+
+### Added
+- **Live-draft transcription**: long recordings (>30 s) now stream each internal
+  transcription chunk into the history pane as soon as it is ready, instead of
+  showing nothing until the entire recording has been transcribed. The draft
+  entry is updated in place and replaced by the authoritative stitched text
+  once the final chunk completes. Clipboard and auto-paste still fire exactly
+  once, on the final result. Controlled by the new
+  `streaming_partials_enabled` setting (default on; toggle in Settings)
+- **`SpeechEngine` partial-callback contract**: `transcribe()` / `_transcribe_impl()`
+  accept an optional `partial_callback(text, chunk_index, total_chunks)` which
+  the Cohere engine invokes after each chunk of a multi-chunk transcription;
+  callback exceptions are logged and swallowed
+- **`WorkerSignals.partial(str, int, int)`** signal for routing per-chunk
+  updates from the engine worker to the UI thread via `Qt.QueuedConnection`
+
+---
+
 ## [0.4.0] - RegisterHotKey & Privacy Disclosure
 
 ### Changed

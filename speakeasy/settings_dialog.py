@@ -237,6 +237,23 @@ class SettingsDialog(QDialog):
         )
         ux_form.addRow(self._clear_logs_on_exit)
 
+        self._streaming_partials = QCheckBox(
+            "Show live transcription as you speak (chunk-by-chunk)"
+        )
+        _streaming_tip = (
+            "Long recordings are transcribed in ~30 s chunks; when enabled,\n"
+            "each chunk appears in the history pane as soon as it is ready\n"
+            "instead of waiting for the whole recording to finish.\n"
+            "Auto-copy and auto-paste still fire once, on the final result."
+        )
+        if VARIANT == "cpu":
+            _streaming_tip += (
+                "\n\nNote: on CPU builds each chunk takes longer to render\n"
+                "than on GPU; disable this if your machine is slow."
+            )
+        self._streaming_partials.setToolTip(_streaming_tip)
+        ux_form.addRow(self._streaming_partials)
+
         ux_group.setLayout(ux_form)
         layout.addWidget(ux_group)
 
@@ -271,6 +288,7 @@ class SettingsDialog(QDialog):
         self._hotkey_start.setText(s.hotkey_start)
         self._hotkey_quit.setText(s.hotkey_quit)
         self._clear_logs_on_exit.setChecked(s.clear_logs_on_exit)
+        self._streaming_partials.setChecked(s.streaming_partials_enabled)
 
         # Select current mic device
         idx = self._mic_combo.findData(s.mic_device_index)
@@ -295,6 +313,7 @@ class SettingsDialog(QDialog):
         s.hotkey_start = self._hotkey_start.text().strip() or "ctrl+alt+p"
         s.hotkey_quit = self._hotkey_quit.text().strip() or "ctrl+alt+q"
         s.clear_logs_on_exit = self._clear_logs_on_exit.isChecked()
+        s.streaming_partials_enabled = self._streaming_partials.isChecked()
         s.mic_device_index = self._mic_combo.currentData()
 
         try:

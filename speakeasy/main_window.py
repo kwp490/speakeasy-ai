@@ -115,7 +115,23 @@ class ModelStatus(str, Enum):
 
 
 class _HistoryEntry(QWidget):
-    """Single row in the transcription history."""
+    """Single row in the transcription history.
+
+    Supports two modes:
+
+    * Final entry (default): fixed timestamp, ✅/❌ status icon, displayed text,
+      optional original/cleaned labels for Professional Mode.
+    * Live draft (``is_draft=True``): the same row in a provisional state while
+      the engine is still transcribing chunks. The text label is greyed and
+      italic, the status cell shows ``"chunk i/n"``, and the copy button is
+      disabled. Call :meth:`set_text` / :meth:`set_progress` to update the
+      draft in place, then :meth:`mark_final` (or :meth:`mark_error`) when the
+      final transcription — or an error — arrives.
+    """
+
+    _DRAFT_ICON = "\u23f3"   # hourglass
+    _SUCCESS_ICON = "\u2705"
+    _ERROR_ICON = "\u274c"
 
     def __init__(
         self,
@@ -124,18 +140,85 @@ class _HistoryEntry(QWidget):
         success: bool,
         parent: Optional[QWidget] = None,
         original_text: Optional[str] = None,
+        is_draft: bool = False,
     ):
         super().__init__(parent)
         self._text = text
+        self._is_draft = is_draft
         row = QHBoxLayout(self)
         row.setContentsMargins(4, 2, 4, 2)
 
-        icon = "\u2705" if success else "\u274c"
-        time_label = QLabel(f"<b>{timestamp}</b>")
-        time_label.setFixedWidth(70)
-        status_label = QLabel(icon)
-        status_label.setFixedWidth(22)
+        self._time_label = QLabel(f"<b>{timestamp}</b>")
+        self._time_label.setFixedWidth(70)
+        self._status_label = QLabel(self._status_text(success))
+        # Widen so "chunk i/n" fits while still aligning with final-entry icons.
+        self._status_label.setFixedWidth(60)
 
+        self._text_widget = self._build_text_widget(text, original_text)
+
+        self._copy_btn = QPushButton("Copy")
+        self._copy_btn.setFixedWidth(50)
+        self._copy_btn.clicked.connect(self._copy)
+        if is_draft:
+            self._copy_btn.setEnabled(False)
+
+        row.addWidget(self._time_label)
+        row.addWidget(self._status_label)
+        row.addWidget(self._text_widget)
+        row.addWidget(self._copy_btn)
+
+        if is_draft:
+            self._apply_draft_style()
+
+    # ── Public API for draft updates ─────────────────────────────────────────
+
+    @property
+    def is_draft(self) -> bool:
+        return self._is_draft
+
+    @property
+    def text(self) -> str:
+        """The currently-displayed transcription text (stripped)."""
+        return self._text
+
+    def set_text(self, text: str) -> None:
+        """Replace the displayed text. Used during draft updates."""
+        self._text = text
+        self._set_text_widget_text(text)
+
+    def set_progress(self, chunk_index: int, total_chunks: int) -> None:
+        """Update the status cell to ``"chunk i/n"`` while draft."""
+        if self._is_draft:
+            self._status_label.setText(f"{chunk_index}/{total_chunks}")
+
+    def mark_final(self, text: str, success: bool = True,
+                   original_text: Optional[str] = None) -> None:
+        """Finalize a draft entry with the authoritative transcription."""
+        self._is_draft = False
+        self._text = text
+        self._status_label.setText(self._status_text(success))
+        # Rebuild text widget to pick up original/cleaned layout if needed.
+        layout = self.layout()
+        layout.removeWidget(self._text_widget)
+        self._text_widget.deleteLater()
+        self._text_widget = self._build_text_widget(text, original_text)
+        # Re-insert in slot 2 (after time + status, before copy).
+        layout.insertWidget(2, self._text_widget)
+        self._copy_btn.setEnabled(True)
+        self._clear_draft_style()
+
+    def mark_error(self, message: str) -> None:
+        """Finalize a draft entry in an error state."""
+        self.mark_final(f"Error: {message}", success=False)
+
+    # ── Internals ────────────────────────────────────────────────────────────
+
+    def _status_text(self, success: bool) -> str:
+        if self._is_draft:
+            return self._DRAFT_ICON
+        return self._SUCCESS_ICON if success else self._ERROR_ICON
+
+    def _build_text_widget(self, text: str, original_text: Optional[str]) -> QWidget:
         # Build text column — one or two labels depending on professional mode
         if original_text is not None:
             text_col = QVBoxLayout()
@@ -159,21 +242,33 @@ class _HistoryEntry(QWidget):
             text_widget = QWidget()
             text_widget.setLayout(text_col)
             text_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        else:
+            return text_widget
+
+        display = text if len(text) <= 120 else text[:117] + "…"
+        label = QLabel(display)
+        label.setWordWrap(True)
+        label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        return label
+
+    def _set_text_widget_text(self, text: str) -> None:
+        """Update the text in the simple (single-label) widget path."""
+        if isinstance(self._text_widget, QLabel):
             display = text if len(text) <= 120 else text[:117] + "…"
-            text_widget = QLabel(display)
-            text_widget.setWordWrap(True)
-            text_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-            text_widget.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            self._text_widget.setText(display)
 
-        copy_btn = QPushButton("Copy")
-        copy_btn.setFixedWidth(50)
-        copy_btn.clicked.connect(self._copy)
+    def _apply_draft_style(self) -> None:
+        style = f'color:{COLOR_DIMMED}; font-style:italic;'
+        if isinstance(self._text_widget, QLabel):
+            display = self._text if len(self._text) <= 120 else self._text[:117] + "…"
+            self._text_widget.setText(
+                f'<span style="{style}">{display}</span>' if display else
+                f'<span style="{style}">(listening…)</span>'
+            )
 
-        row.addWidget(time_label)
-        row.addWidget(status_label)
-        row.addWidget(text_widget)
-        row.addWidget(copy_btn)
+    def _clear_draft_style(self) -> None:
+        # Rebuilt widget in mark_final has no draft styling; nothing to undo.
+        pass
 
     def _copy(self) -> None:
         set_clipboard_text(self._text)
@@ -216,6 +311,9 @@ class MainWindow(QMainWindow):
         self._model_load_start: float = 0.0
         self._last_resume_time: float = 0.0
         self._mic_suspended_for_processing = False
+        # Live-draft history entry updated while the engine transcribes a
+        # multi-chunk recording; None outside of transcription.
+        self._active_draft_entry: Optional[_HistoryEntry] = None
 
         # ── Resource monitor ─────────────────────────────────────────────────
         self._res_monitor = ResourceMonitor(
@@ -804,8 +902,13 @@ class MainWindow(QMainWindow):
 
         self._suspend_mic_stream_for_processing()
 
+        # Streaming partial emission: when enabled, the engine fires a
+        # callback after each chunk of a multi-chunk transcription. Route it
+        # to a Qt signal on the worker (thread-safe via QueuedConnection).
+        streaming_enabled = bool(self.settings.streaming_partials_enabled)
+
         # Heavy work on thread pool — NO clipboard ops here
-        def _process():
+        def _process(_partial_emit=None):
             # Trim silence
             trim_result = self._recorder.trim_silence(audio)
             if trim_result is None:
@@ -823,13 +926,44 @@ class MainWindow(QMainWindow):
                 trimmed, self.settings.sample_rate, self.settings.language,
                 punctuation=self.settings.punctuation,
                 timeout=self.settings.inference_timeout,
+                partial_callback=_partial_emit,
             )
             return text
 
         worker = Worker(_process)
         worker.signals.result.connect(self._on_transcription_result)
         worker.signals.error.connect(self._on_transcription_error)
+        if streaming_enabled:
+            worker.signals.partial.connect(
+                self._on_transcription_partial, Qt.ConnectionType.QueuedConnection
+            )
+            # Bind the worker's partial signal into the _process closure.
+            # QueuedConnection ensures the UI slot runs on the main thread.
+            worker.args = (worker.signals.partial.emit,)
         self._engine_pool.start(worker)
+
+    @Slot(str, int, int)
+    def _on_transcription_partial(self, text: str, chunk_index: int, total_chunks: int) -> None:
+        """Engine emitted a per-chunk partial transcription — show as draft.
+
+        Runs on the MAIN THREAD via QueuedConnection. Creates the draft
+        entry on the first partial and updates it in place for subsequent
+        chunks. Clipboard and paste are NOT triggered here; they fire only
+        from the final ``_on_transcription_result``.
+        """
+        text = str(text).strip()
+        if self._active_draft_entry is None:
+            ts = datetime.datetime.now().strftime("%H:%M:%S")
+            draft = _HistoryEntry(
+                ts, text, success=True, parent=self._history_widget,
+                is_draft=True,
+            )
+            count = self._history_layout.count()
+            self._history_layout.insertWidget(max(0, count - 1), draft)
+            self._active_draft_entry = draft
+        else:
+            self._active_draft_entry.set_text(text)
+        self._active_draft_entry.set_progress(chunk_index, total_chunks)
 
     @Slot(object)
     def _on_transcription_result(self, text: str) -> None:
@@ -838,7 +972,6 @@ class MainWindow(QMainWindow):
         self._resume_mic_stream_after_processing()
         text = str(text).strip()
         ts = datetime.datetime.now().strftime("%H:%M:%S")
-
         if text:
             self._set_dictation_state(DictationState.SUCCESS)
             self._log_ui(f"Transcribed: {len(text)} chars")
@@ -1055,6 +1188,16 @@ class MainWindow(QMainWindow):
         success: bool,
         original_text: Optional[str] = None,
     ) -> None:
+        # If a live-draft entry is currently in-flight (created by the
+        # streaming partial signal), finalize it in place instead of
+        # appending a new row. This keeps the final Professional-Mode
+        # two-line layout on the same row the user was watching grow.
+        if self._active_draft_entry is not None:
+            draft = self._active_draft_entry
+            self._active_draft_entry = None
+            draft.mark_final(text, success=success, original_text=original_text)
+            return
+
         entry = _HistoryEntry(
             timestamp, text, success, parent=self._history_widget,
             original_text=original_text,
@@ -1502,20 +1645,19 @@ class MainWindow(QMainWindow):
             if not self.settings.pro_disclosure_accepted:
                 disc = QMessageBox(self)
                 disc.setIcon(QMessageBox.Icon.Warning)
-                disc.setWindowTitle("Professional Mode — Data Privacy Notice")
+                disc.setWindowTitle("Data Privacy Notice: Optional Professional Mode")
                 disc.setText(
-                    "<b>Your transcribed text will be sent outside this machine.</b>"
+                    "All transcription is local to this machine and is not stored, "
+                    "externally transmitted, or logged."
                 )
                 disc.setInformativeText(
-                    "When Professional Mode is active, each dictation result is "
-                    "transmitted to <b>api.openai.com</b> under your personal "
-                    "OpenAI API key — bypassing any corporate OpenAI tenant, "
-                    "Azure OpenAI endpoint, or DLP controls.<br><br>"
-                    "&#x26a0;&#xfe0f;&nbsp; Do not dictate confidential content — "
+                    "If you choose to enable Professional Mode, dictation results will "
+                    "be transmitted to <b>api.openai.com</b> under your personal "
+                    "OpenAI API key.<br><br>"
+                    "&#x26a0;&#xfe0f;&nbsp; Do not dictate confidential content, "
                     "including personal data (PII/PHI), financial records, "
                     "proprietary business information, or content that identifies "
-                    "colleagues or customers — unless you are authorised to share "
-                    "it with an external AI service under your personal account.<br><br>"
+                    "colleagues or customers.<br><br>"
                     "By clicking <b>I Understand</b> you acknowledge this notice. "
                     "It will not be shown again."
                 )

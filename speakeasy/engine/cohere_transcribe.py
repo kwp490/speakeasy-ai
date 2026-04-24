@@ -110,7 +110,8 @@ class CohereTranscribeEngine(SpeechEngine):
 
     def _transcribe_impl(self, audio_16k: np.ndarray, language: str,
                           punctuation: bool = True,
-                          timeout: float = 30.0) -> str:
+                          timeout: float = 30.0,
+                          partial_callback=None) -> str:
         from .audio_utils import chunk_audio, stitch_transcripts
 
         duration_sec = len(audio_16k) / 16000
@@ -120,6 +121,8 @@ class CohereTranscribeEngine(SpeechEngine):
         overlap_s = self._overlap_seconds
 
         # Short-circuit: single-clip fast path (no chunking overhead).
+        # Partial callback is not invoked in this path — caller gets the
+        # final result via the normal return.
         if duration_sec <= max_clip_s:
             max_tokens = self._token_budget(duration_sec)
             log.info(
@@ -144,15 +147,25 @@ class CohereTranscribeEngine(SpeechEngine):
         )
 
         texts = []
+        total = len(chunks)
         for i, chunk in enumerate(chunks):
             chunk_dur = len(chunk) / 16000
             chunk_tokens = self._token_budget(chunk_dur)
             log.info("  chunk %d/%d: %.1fs, max_new_tokens=%d",
-                     i + 1, len(chunks), chunk_dur, chunk_tokens)
+                     i + 1, total, chunk_dur, chunk_tokens)
             text = self._transcribe_chunk(
                 chunk, language, punctuation, timeout, chunk_tokens,
             )
             texts.append(text)
+
+            # Emit running stitched text for per-chunk partials. Swallow any
+            # callback errors so a broken UI slot never breaks transcription.
+            if partial_callback is not None:
+                try:
+                    running = stitch_transcripts(texts)
+                    partial_callback(running, i + 1, total)
+                except Exception:
+                    log.exception("partial_callback raised; ignoring")
 
         result = stitch_transcripts(texts)
         log.info("Stitched %d chunks → %d chars", len(texts), len(result))

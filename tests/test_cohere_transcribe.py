@@ -192,6 +192,60 @@ class TestChunkedTranscription(unittest.TestCase):
         self.assertIn("ends here", result)
 
 
+class TestPartialCallback(unittest.TestCase):
+    """Per-chunk partial-result callback contract."""
+
+    def _engine(self, responses, max_clip=30.0, overlap=5.0):
+        engine = CohereTranscribeEngine()
+        engine._processor = _SequenceFakeProcessor(responses)
+        engine._model = _FakeModel()
+        engine._max_clip_seconds = max_clip
+        engine._overlap_seconds = overlap
+        return engine
+
+    def test_partial_callback_fires_per_chunk(self):
+        engine = self._engine([
+            "the quick brown fox",
+            "brown fox jumps over",
+            "over the lazy dog",
+        ], max_clip=30.0, overlap=5.0)
+        audio = np.zeros(int(80 * 16000), dtype=np.float32)
+        calls = []
+        engine._transcribe_impl(audio, "en",
+                                partial_callback=lambda t, i, n: calls.append((t, i, n)))
+        # One call per chunk, correct indexing.
+        self.assertEqual(len(calls), 3)
+        self.assertEqual([c[1] for c in calls], [1, 2, 3])
+        self.assertTrue(all(c[2] == 3 for c in calls))
+        # Running text should be non-empty and monotonically non-shrinking.
+        self.assertTrue(all(len(c[0]) > 0 for c in calls))
+        self.assertGreaterEqual(len(calls[-1][0]), len(calls[0][0]))
+
+    def test_partial_callback_single_chunk_does_not_fire(self):
+        engine = self._engine(["short clip"])
+        audio = np.zeros(int(10 * 16000), dtype=np.float32)
+        calls = []
+        result = engine._transcribe_impl(audio, "en",
+                                         partial_callback=lambda *a: calls.append(a))
+        self.assertEqual(result, "short clip")
+        self.assertEqual(calls, [])
+
+    def test_partial_callback_exception_is_swallowed(self):
+        engine = self._engine([
+            "first chunk text",
+            "second chunk text",
+        ], max_clip=30.0, overlap=5.0)
+        audio = np.zeros(int(50 * 16000), dtype=np.float32)
+
+        def _boom(text, i, n):
+            raise RuntimeError("callback failure")
+
+        result = engine._transcribe_impl(audio, "en", partial_callback=_boom)
+        # Final result still returned even though every callback raised.
+        self.assertIn("first", result)
+        self.assertIn("second", result)
+
+
 class TestConfigReading(unittest.TestCase):
     """Model config attributes should be read into engine limits."""
 

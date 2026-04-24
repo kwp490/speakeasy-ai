@@ -58,6 +58,10 @@ class Settings:
     hotkey_start: str = "ctrl+alt+p"
     hotkey_quit: str = "ctrl+alt+q"
     clear_logs_on_exit: bool = True
+    # When True, long recordings emit a "live draft" history entry that grows
+    # chunk-by-chunk as the engine transcribes. Clipboard/paste still fires
+    # once on the final stitched text. CPU builds render slower per chunk.
+    streaming_partials_enabled: bool = True
 
     # ── Audio ─────────────────────────────────────────────────────────────────
     mic_device_index: int = -1           # -1 = system default

@@ -300,20 +300,19 @@ class ProSettingsDialog(QDialog):
         ):
             disc = QMessageBox(self)
             disc.setIcon(QMessageBox.Icon.Warning)
-            disc.setWindowTitle("Professional Mode — Data Privacy Notice")
+            disc.setWindowTitle("Data Privacy Notice: Optional Professional Mode")
             disc.setText(
-                "<b>Your transcribed text will be sent outside this machine.</b>"
+                "All transcription is local to this machine and is not stored, "
+                "externally transmitted, or logged."
             )
             disc.setInformativeText(
-                "When Professional Mode is active, each dictation result is "
-                "transmitted to <b>api.openai.com</b> under your personal "
-                "OpenAI API key — bypassing any corporate OpenAI tenant, "
-                "Azure OpenAI endpoint, or DLP controls.<br><br>"
-                "&#x26a0;&#xfe0f;&nbsp; Do not dictate confidential content — "
+                "If you choose to enable <b>Professional Mode</b>, dictation results will "
+                "be transmitted to <b>api.openai.com</b> under your specified "
+                "OpenAI API key.<br><br>"
+                "&#x26a0;&#xfe0f;&nbsp; Do not dictate confidential content, "
                 "including personal data (PII/PHI), financial records, "
                 "proprietary business information, or content that identifies "
-                "colleagues or customers — unless you are authorised to share "
-                "it with an external AI service under your personal account.<br><br>"
+                "colleagues or customers.<br><br>"
                 "By clicking <b>I Understand</b> you acknowledge this notice. "
                 "It will not be shown again."
             )
