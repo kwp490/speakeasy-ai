@@ -66,20 +66,31 @@ def set_clipboard_text(text: str) -> bool:
 
 # ── Auto-paste ────────────────────────────────────────────────────────────────
 
+_VK_CONTROL = 0x11
+_VK_MENU = 0x12  # Alt
+_VK_V = 0x56
+_KEYEVENTF_KEYUP = 0x0002
+
+
 def simulate_paste(wait_for_modifiers: bool = True) -> None:
-    """Send Ctrl+V to the active window.
+    """Send Ctrl+V to the active window via Win32 keybd_event.
 
     When *wait_for_modifiers* is ``True`` the function spins until
     Ctrl and Alt are released — this prevents Ctrl+Alt+V being sent
     instead of Ctrl+V when triggered via a global hotkey.
     """
-    import keyboard  # imported here so clipboard module can be used without keyboard
-
     if wait_for_modifiers:
         for _ in range(200):  # 10 s max wait
-            if not keyboard.is_pressed("ctrl") and not keyboard.is_pressed("alt"):
+            ctrl_down = _user32.GetAsyncKeyState(_VK_CONTROL) & 0x8000
+            alt_down = _user32.GetAsyncKeyState(_VK_MENU) & 0x8000
+            if not ctrl_down and not alt_down:
                 break
             time.sleep(0.05)
         time.sleep(0.05)
-    keyboard.send("ctrl+v")
+
+    # keybd_event(bVk, bScan, dwFlags, dwExtraInfo) — no struct layout needed
+    _user32.keybd_event(_VK_CONTROL, 0, 0, 0)
+    _user32.keybd_event(_VK_V, 0, 0, 0)
+    _user32.keybd_event(_VK_V, 0, _KEYEVENTF_KEYUP, 0)
+    _user32.keybd_event(_VK_CONTROL, 0, _KEYEVENTF_KEYUP, 0)
     log.debug("Ctrl+V sent")

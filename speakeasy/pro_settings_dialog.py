@@ -291,6 +291,42 @@ class ProSettingsDialog(QDialog):
         # Flush current preset edits
         self._flush_preset_edits()
 
+        # Show one-time data-privacy disclosure when enabling Professional Mode
+        # for the first time through this dialog.
+        if (
+            self._pro_enabled.isChecked()
+            and not self._settings.professional_mode
+            and not self._settings.pro_disclosure_accepted
+        ):
+            disc = QMessageBox(self)
+            disc.setIcon(QMessageBox.Icon.Warning)
+            disc.setWindowTitle("Professional Mode — Data Privacy Notice")
+            disc.setText(
+                "<b>Your transcribed text will be sent outside this machine.</b>"
+            )
+            disc.setInformativeText(
+                "When Professional Mode is active, each dictation result is "
+                "transmitted to <b>api.openai.com</b> under your personal "
+                "OpenAI API key — bypassing any corporate OpenAI tenant, "
+                "Azure OpenAI endpoint, or DLP controls.<br><br>"
+                "&#x26a0;&#xfe0f;&nbsp; Do not dictate confidential content — "
+                "including personal data (PII/PHI), financial records, "
+                "proprietary business information, or content that identifies "
+                "colleagues or customers — unless you are authorised to share "
+                "it with an external AI service under your personal account.<br><br>"
+                "By clicking <b>I Understand</b> you acknowledge this notice. "
+                "It will not be shown again."
+            )
+            disc.setStandardButtons(
+                QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel
+            )
+            disc.setDefaultButton(QMessageBox.StandardButton.Cancel)
+            disc.button(QMessageBox.StandardButton.Ok).setText("I Understand")
+            if disc.exec() != QMessageBox.StandardButton.Ok:
+                self._pro_enabled.setChecked(False)
+            else:
+                self._settings.pro_disclosure_accepted = True
+
         # Professional Mode enable/preset
         self._settings.professional_mode = self._pro_enabled.isChecked()
         preset_name = self._preset_combo.currentText()

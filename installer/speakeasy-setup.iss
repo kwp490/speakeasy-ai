@@ -1,7 +1,7 @@
 ; ─────────────────────────────────────────────────────────────────────────────
 ; SpeakEasy AI v3 Inno Setup Installer Script
 ;
-; Produces a single SpeakEasy-AI-Setup-0.3.3.exe that handles:
+; Produces a single SpeakEasy-AI-Setup-0.4.0.exe that handles:
 ;   - File extraction (from PyInstaller dist/speakeasy/ output)
 ;   - HuggingFace token prompt + Cohere Transcribe model download
 ;   - Desktop + Start Menu shortcuts
@@ -17,7 +17,7 @@
 ; ─────────────────────────────────────────────────────────────────────────────
 
 #define MyAppName "SpeakEasy AI"
-#define MyAppVersion "0.3.3"
+#define MyAppVersion "0.4.0"
 #define MyAppPublisher "kwp490"
 #define MyAppURL "https://github.com/kwp490/SpeakEasyAI"
 #define MyAppExeName "speakeasy.exe"

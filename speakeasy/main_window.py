@@ -56,6 +56,7 @@ from ._constants import (
     STATE_RESET_IDLE_MS,
     SYSTEM_RESUME_DEBOUNCE_S,
     SYSTEM_RESUME_DELAY_MS,
+    WM_HOTKEY,
     WM_POWERBROADCAST,
 )
 from .config import DEFAULT_LOG_DIR, DEFAULT_PRESETS_DIR, Settings
@@ -550,6 +551,7 @@ class MainWindow(QMainWindow):
             self._hotkey_mgr.register(
                 self.settings.hotkey_start,
                 self.settings.hotkey_quit,
+                hwnd=int(self.winId()),
             )
 
     @Slot(bool)
@@ -558,6 +560,7 @@ class MainWindow(QMainWindow):
             self._hotkey_mgr.register(
                 self.settings.hotkey_start,
                 self.settings.hotkey_quit,
+                hwnd=int(self.winId()),
             )
             self._log_ui("Global hotkeys enabled")
         else:
@@ -1363,7 +1366,7 @@ class MainWindow(QMainWindow):
 
         # Hotkeys
         if s.hotkeys_enabled:
-            self._hotkey_mgr.register(s.hotkey_start, s.hotkey_quit)
+            self._hotkey_mgr.register(s.hotkey_start, s.hotkey_quit, hwnd=int(self.winId()))
         else:
             self._hotkey_mgr.unregister()
         self._chk_hotkeys.setChecked(s.hotkeys_enabled)
@@ -1495,6 +1498,38 @@ class MainWindow(QMainWindow):
                 if reply == QMessageBox.StandardButton.Yes:
                     self._on_open_pro_settings()
                 return
+            # All prerequisites met — show one-time data-privacy disclosure
+            if not self.settings.pro_disclosure_accepted:
+                disc = QMessageBox(self)
+                disc.setIcon(QMessageBox.Icon.Warning)
+                disc.setWindowTitle("Professional Mode — Data Privacy Notice")
+                disc.setText(
+                    "<b>Your transcribed text will be sent outside this machine.</b>"
+                )
+                disc.setInformativeText(
+                    "When Professional Mode is active, each dictation result is "
+                    "transmitted to <b>api.openai.com</b> under your personal "
+                    "OpenAI API key — bypassing any corporate OpenAI tenant, "
+                    "Azure OpenAI endpoint, or DLP controls.<br><br>"
+                    "&#x26a0;&#xfe0f;&nbsp; Do not dictate confidential content — "
+                    "including personal data (PII/PHI), financial records, "
+                    "proprietary business information, or content that identifies "
+                    "colleagues or customers — unless you are authorised to share "
+                    "it with an external AI service under your personal account.<br><br>"
+                    "By clicking <b>I Understand</b> you acknowledge this notice. "
+                    "It will not be shown again."
+                )
+                disc.setStandardButtons(
+                    QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel
+                )
+                disc.setDefaultButton(QMessageBox.StandardButton.Cancel)
+                disc.button(QMessageBox.StandardButton.Ok).setText("I Understand")
+                if disc.exec() != QMessageBox.StandardButton.Ok:
+                    self._chk_professional.blockSignals(True)
+                    self._chk_professional.setChecked(False)
+                    self._chk_professional.blockSignals(False)
+                    return
+                self.settings.pro_disclosure_accepted = True
             # All prerequisites met — enable
             self.settings.professional_mode = True
             model = self._active_preset.model or "gpt-5.4-mini"
@@ -1521,6 +1556,9 @@ class MainWindow(QMainWindow):
                 import ctypes.wintypes
 
                 msg = ctypes.wintypes.MSG.from_address(int(message))
+                if msg.message == WM_HOTKEY:
+                    self._hotkey_mgr.handle_wm_hotkey(int(msg.wParam))
+                    return True, 0
                 if msg.message == WM_POWERBROADCAST and msg.wParam in (
                     PBT_APMRESUMEAUTOMATIC,
                     PBT_APMRESUMESUSPEND,

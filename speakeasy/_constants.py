@@ -18,7 +18,8 @@ STATE_RESET_ERROR_MS = 2000
 SYSTEM_RESUME_DELAY_MS = 2000
 SYSTEM_RESUME_DEBOUNCE_S = 10
 
-# ── Windows power-management messages ────────────────────────────────────────
+# ── Windows messages ─────────────────────────────────────────────────────────
+WM_HOTKEY = 0x0312
 WM_POWERBROADCAST = 0x0218
 PBT_APMRESUMEAUTOMATIC = 0x0012
 PBT_APMRESUMESUSPEND = 0x0007

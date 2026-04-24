@@ -69,6 +69,7 @@ class Settings:
     professional_mode: bool = False
     pro_active_preset: str = "General Professional"
     store_api_key: bool = False
+    pro_disclosure_accepted: bool = False  # True once user acknowledges data-privacy notice
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 

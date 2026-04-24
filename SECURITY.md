@@ -29,21 +29,21 @@ Instead, email the maintainer directly or use [GitHub's private vulnerability re
 
 ## Known Security Considerations
 
-- **Keyboard hooks**: The `keyboard` library uses low-level hooks (`SetWindowsHookEx`) for global hotkeys. Antivirus or anti-malware software may flag this as suspicious — it is a false positive. SpeakEasy AI only listens for the specific hotkey combinations you configure.
+- **Hotkeys**: Global hotkeys are registered via the Win32 `RegisterHotKey` API — only the configured chord is delivered to the application. No global keyboard hook (`SetWindowsHookEx`) is installed.
 - **Administrator privileges**: The installer requires elevation to write to `C:\Program Files\SpeakEasy AI`.
 - **Defender exclusions**: The GUI installer automatically adds Windows Defender exclusions for the install directory and `speakeasy.exe` to prevent false positives.
 - **`uv.exe` false positives**: Some anti-malware tools (e.g. Malwarebytes) may quarantine `uv.exe` during source installs. If this happens, restore it and add it to your allow list. [uv](https://github.com/astral-sh/uv) is a widely used open-source Python package manager.
 - **API key handling (Professional Mode)**: OpenAI API keys entered in Settings are held in memory only by default and are **never** written to `settings.json` or any log file. If "Remember API key" is enabled, the key is stored via Windows Credential Manager (protected by Windows DPAPI encryption). API keys are never displayed in the UI log panel, and all error messages are sanitized to redact key content.
 - **Single-instance mutex**: A Windows named mutex (`Global\SpeakEasyAIMutex`) prevents multiple SpeakEasy AI processes from running simultaneously, avoiding resource conflicts.
-- **Blackwell workarounds**: On RTX 50-series GPUs, environment variables `CUDA_LAUNCH_BLOCKING` and `TORCHDYNAMO_DISABLE` are set automatically for stability. These are security-neutral but modify the process environment.
+
 
 ## Privacy & Data Handling
 
-**Audio**: Recorded audio is processed in memory and discarded after transcription. The Cohere engine writes temporary WAV files to `%TEMP%\SpeakEasy AI\` during processing; these are deleted immediately after use.
+**Audio**: Recorded audio is processed entirely in memory as numpy arrays and discarded after transcription. No temporary files are written to disk during processing.
 
 **Transcriptions**: Transcribed text is displayed in the UI and optionally copied to the clipboard. Transcription content is **not** written to log files — only character counts are logged. When **Professional Mode** is enabled, transcribed text is sent to the OpenAI API for cleanup (see Network below).
 
-**Logs**: Application logs are stored at `C:\Program Files\SpeakEasy AI\logs\` as rotating plaintext files (~6 MB max). Logs contain diagnostic information (engine status, GPU metrics, error traces) but no speech content. Logs are cleared on exit by default (`clear_logs_on_exit: true`).
+**Logs**: Application logs are stored at `%ProgramData%\SpeakEasy AI\logs\` as rotating plaintext files (~6 MB max). Logs contain diagnostic information (engine status, GPU metrics, error traces) but no speech content. Logs are cleared on exit by default (`clear_logs_on_exit: true`).
 
 **Network**: SpeakEasy AI makes network requests **only** in two scenarios:
 
@@ -52,4 +52,4 @@ Instead, email the maintainer directly or use [GitHub's private vulnerability re
 
 No telemetry, analytics, or usage data is collected or transmitted.
 
-**Keyboard hooks**: Only the configured hotkey combinations are monitored — general keystrokes are not captured or logged.
+**Hotkeys**: Global hotkeys use the Win32 `RegisterHotKey` API — only the configured chord is delivered to the application. No global keyboard hook is installed and no keystrokes are captured or logged.

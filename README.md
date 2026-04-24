@@ -37,11 +37,11 @@ There are two ways to install SpeakEasy AI: download the pre-built installer (re
 
 | Variant               | Download                                         | Requirements                                 |
 | --------------------- | ------------------------------------------------ | -------------------------------------------- |
-| **GPU** (recommended) | [SpeakEasy-AI-Setup-0.3.3.exe][gpu-installer]     | NVIDIA GPU (RTX 30+, 6 GB VRAM, Driver 525+) |
-| **CPU**               | [SpeakEasy-AI-CPU-Setup-0.3.3.exe][cpu-installer] | No GPU required (slower inference)           |
+| **GPU** (recommended) | [SpeakEasy-AI-Setup-0.4.0.exe][gpu-installer]     | NVIDIA GPU (RTX 30+, 6 GB VRAM, Driver 525+) |
+| **CPU**               | [SpeakEasy-AI-CPU-Setup-0.4.0.exe][cpu-installer] | No GPU required (slower inference)           |
 
-[gpu-installer]: https://github.com/kwp490/speakeasy-ai/releases/download/v0.3.3/SpeakEasy-AI-Setup-0.3.3.exe
-[cpu-installer]: https://github.com/kwp490/speakeasy-ai/releases/download/v0.3.3/SpeakEasy-AI-CPU-Setup-0.3.3.exe
+[gpu-installer]: https://github.com/kwp490/speakeasy-ai/releases/download/v0.4.0/SpeakEasy-AI-Setup-0.4.0.exe
+[cpu-installer]: https://github.com/kwp490/speakeasy-ai/releases/download/v0.4.0/SpeakEasy-AI-CPU-Setup-0.4.0.exe
 
 Double-click the installer and follow the prompts. No Python, no command line required. The installer will:
 
@@ -129,7 +129,7 @@ Output installers are written to `installer\Output\`.
 | Setting              | Default                                | Description                                      |
 | -------------------- | -------------------------------------- | ------------------------------------------------ |
 | `engine`             | `cohere`                               | Speech engine (Cohere Transcribe)                |
-| `model_path`         | `C:\Program Files\SpeakEasy AI\models`  | Directory for model weights                      |
+| `model_path`         | `%ProgramData%\SpeakEasy AI\models`    | Directory for model weights                      |
 | `device`             | `cuda` (GPU) / `cpu` (CPU)             | Inference device — GPU builds default to `cuda` and allow `cpu` fallback; CPU builds are locked to `cpu` |
 | `language`           | `en`                                   | Language code                                    |
 | `punctuation`        | `true`                                 | Enable automatic punctuation in transcription    |
@@ -148,7 +148,7 @@ Output installers are written to `installer\Output\`.
 | `pro_active_preset`  | `General Professional`                 | Active Professional Mode preset name             |
 | `store_api_key`      | `false`                                | Persist API key in Windows Credential Manager    |
 
-Settings are stored at `C:\Program Files\SpeakEasy AI\config\settings.json`.
+Settings are stored at `%ProgramData%\SpeakEasy AI\config\settings.json`.
 
 > **Note:** The OpenAI API key is **never** stored in `settings.json`. It is held in memory only, unless you enable "Remember API key", which saves it securely via Windows Credential Manager (DPAPI).
 
@@ -164,6 +164,9 @@ All hotkey bindings are configurable in Settings. Hotkeys can also be disabled e
 ## Professional Mode
 
 Optional AI-powered post-processing that cleans up your dictated text before it reaches the clipboard. Configure it via the **Professional Mode Settings** button in the main window.
+
+> **⚠ Data Privacy — text leaves this machine.**
+> When Professional Mode is active, each dictation result is transmitted to **api.openai.com** under your personal OpenAI API key — bypassing any corporate OpenAI tenant, Azure OpenAI endpoint, or DLP controls. Do not dictate confidential content — including personal data (PII/PHI), financial records, proprietary business information, or content that identifies colleagues or customers — unless you are authorised to share it with an external AI service under your personal account. SpeakEasy will display this notice the first time you enable the feature.
 
 **What it does:**
 - **Fix tone** — rewrites emotional, aggressive, or unprofessional language while preserving meaning

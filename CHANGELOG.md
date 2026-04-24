@@ -5,6 +5,29 @@ All notable changes to SpeakEasy AI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - RegisterHotKey & Privacy Disclosure
+
+### Changed
+- **Hotkey system rewrite**: Replaced the `keyboard` library (low-level `SetWindowsHookEx`
+  hook) with the Win32 `RegisterHotKey` API — only the configured chord is delivered to the
+  application; no global keyboard hook is installed
+- **Auto-paste rewrite**: `simulate_paste()` now uses Win32 `keybd_event` instead of
+  `keyboard.send()`, removing the last `keyboard` library dependency
+- **Dependency removed**: `keyboard` package removed from `pyproject.toml`
+
+### Added
+- **Professional Mode data-privacy disclosure**: One-time dialog warns users that
+  transcribed text is transmitted to `api.openai.com` under their personal API key
+  before Professional Mode can be enabled (shown in both the main window toggle and
+  the Pro Settings dialog)
+- **`pro_disclosure_accepted`** setting persisted so the notice is shown only once
+
+### Security
+- **SECURITY.md** updated to reflect the new hotkey mechanism and corrected log/data paths
+- **README.md** adds a data-privacy callout in the Professional Mode section
+
+---
+
 ## [0.3.3] - Permission Fix
 
 ### Fixed
