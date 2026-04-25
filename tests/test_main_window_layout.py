@@ -492,6 +492,7 @@ class TestDiagnosticsToggleLive(unittest.TestCase):
         try:
             win._api_key = "sk-test-key"
             win._active_preset = ProPreset(name="Test")
+            win.settings.pro_disclosure_accepted = True
             win._chk_professional.setChecked(True)
             self.assertTrue(win.settings.professional_mode)
             self.assertIsNotNone(win._text_processor)
@@ -508,6 +509,7 @@ class TestDiagnosticsToggleLive(unittest.TestCase):
             # First enable
             win._api_key = "sk-test-key"
             win._active_preset = ProPreset(name="Test")
+            win.settings.pro_disclosure_accepted = True
             win._chk_professional.setChecked(True)
             self.assertIsNotNone(win._text_processor)
             # Then disable

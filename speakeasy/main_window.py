@@ -114,6 +114,25 @@ class ModelStatus(str, Enum):
 # ── History entry ─────────────────────────────────────────────────────────────
 
 
+class _WordWrapLabel(QLabel):
+    """QLabel that correctly grows its row when word-wrap causes multiple lines.
+
+    A plain QLabel with ``setWordWrap(True)`` inside a QHBoxLayout inside a
+    QScrollArea frequently fails to propagate its height-for-width requirement,
+    leaving the row clipped.  This subclass updates its own ``minimumHeight``
+    whenever its width changes, which the parent layout then respects.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setWordWrap(True)
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        super().resizeEvent(event)
+        if self.width() > 0:
+            self.setMinimumHeight(self.sizeHint().height())
+
+
 class _HistoryEntry(QWidget):
     """Single row in the transcription history.
 
@@ -145,6 +164,7 @@ class _HistoryEntry(QWidget):
         super().__init__(parent)
         self._text = text
         self._is_draft = is_draft
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
         row = QHBoxLayout(self)
         row.setContentsMargins(4, 2, 4, 2)
 
@@ -226,15 +246,13 @@ class _HistoryEntry(QWidget):
             text_col.setSpacing(1)
 
             orig_display = original_text if len(original_text) <= 120 else original_text[:117] + "…"
-            orig_label = QLabel(f'<span style="color:{COLOR_DIMMED}">Original: {orig_display}</span>')
-            orig_label.setWordWrap(True)
+            orig_label = _WordWrapLabel(f'<span style="color:{COLOR_DIMMED}">Original: {orig_display}</span>')
             orig_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
             orig_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
             text_col.addWidget(orig_label)
 
             clean_display = text if len(text) <= 120 else text[:117] + "…"
-            clean_label = QLabel(f"Cleaned: {clean_display}")
-            clean_label.setWordWrap(True)
+            clean_label = _WordWrapLabel(f"Cleaned: {clean_display}")
             clean_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
             clean_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
             text_col.addWidget(clean_label)
@@ -245,8 +263,7 @@ class _HistoryEntry(QWidget):
             return text_widget
 
         display = text if len(text) <= 120 else text[:117] + "…"
-        label = QLabel(display)
-        label.setWordWrap(True)
+        label = _WordWrapLabel(display)
         label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         return label
