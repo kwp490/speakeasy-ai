@@ -5,6 +5,7 @@ __pycache__/
 
 # Test cache
 .pytest_cache/
+.coverage
 
 # Test output dumps
 test_*.txt

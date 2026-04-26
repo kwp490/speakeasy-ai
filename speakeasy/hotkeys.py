@@ -27,6 +27,7 @@ _MOD_NOREPEAT = 0x4000  # suppress repeated WM_HOTKEY while key is held
 # ── Application-defined hotkey IDs ───────────────────────────────────────────
 _ID_TOGGLE = 1
 _ID_QUIT = 2
+_ID_DEV_PANEL = 3
 
 # ── Virtual-key code table for named keys ────────────────────────────────────
 _VK_NAMED: dict[str, int] = {
@@ -89,6 +90,7 @@ class HotkeyManager(QObject):
 
     toggle_requested = Signal()
     quit_requested = Signal()
+    dev_panel_toggle_requested = Signal()
 
     def __init__(self, parent: Optional[QObject] = None):
         super().__init__(parent)
@@ -96,6 +98,7 @@ class HotkeyManager(QObject):
         self._hwnd: int = 0
         self._hotkey_start: Optional[str] = None
         self._hotkey_quit: Optional[str] = None
+        self._hotkey_dev_panel: Optional[str] = None
 
     # ── Public API ────────────────────────────────────────────────────────────
 
@@ -104,6 +107,7 @@ class HotkeyManager(QObject):
         hotkey_start: str = "ctrl+alt+p",
         hotkey_quit: str = "ctrl+alt+q",
         hwnd: int = 0,
+        hotkey_dev_panel: str = "ctrl+alt+d",
     ) -> None:
         """Register the dictation hotkeys against *hwnd*.  Safe to call repeatedly.
 
@@ -112,6 +116,7 @@ class HotkeyManager(QObject):
         """
         self._hotkey_start = hotkey_start
         self._hotkey_quit = hotkey_quit
+        self._hotkey_dev_panel = hotkey_dev_panel
         self._hwnd = hwnd
         self.unregister()
 
@@ -122,6 +127,7 @@ class HotkeyManager(QObject):
         try:
             mods_toggle, vk_toggle = _parse_hotkey(hotkey_start)
             mods_quit, vk_quit = _parse_hotkey(hotkey_quit)
+            mods_dev, vk_dev = _parse_hotkey(hotkey_dev_panel)
         except ValueError:
             log.error("Failed to parse hotkey strings", exc_info=True)
             return
@@ -129,18 +135,21 @@ class HotkeyManager(QObject):
         user32 = ctypes.windll.user32
         ok_toggle = user32.RegisterHotKey(hwnd, _ID_TOGGLE, mods_toggle, vk_toggle)
         ok_quit = user32.RegisterHotKey(hwnd, _ID_QUIT, mods_quit, vk_quit)
+        ok_dev = user32.RegisterHotKey(hwnd, _ID_DEV_PANEL, mods_dev, vk_dev)
 
-        if ok_toggle and ok_quit:
+        if ok_toggle and ok_quit and ok_dev:
             self._enabled = True
-            log.info("Hotkeys registered: record=%s  quit=%s", hotkey_start, hotkey_quit)
+            log.info("Hotkeys registered: record=%s  quit=%s  dev_panel=%s", hotkey_start, hotkey_quit, hotkey_dev_panel)
         else:
             # Partial registration — clean up to stay consistent
             user32.UnregisterHotKey(hwnd, _ID_TOGGLE)
             user32.UnregisterHotKey(hwnd, _ID_QUIT)
+            user32.UnregisterHotKey(hwnd, _ID_DEV_PANEL)
             log.error(
-                "RegisterHotKey failed (toggle=%s, quit=%s) — hotkeys unavailable",
+                "RegisterHotKey failed (toggle=%s, quit=%s, dev_panel=%s) — hotkeys unavailable",
                 bool(ok_toggle),
                 bool(ok_quit),
+                bool(ok_dev),
             )
 
     def unregister(self) -> None:
@@ -150,6 +159,7 @@ class HotkeyManager(QObject):
         user32 = ctypes.windll.user32
         user32.UnregisterHotKey(self._hwnd, _ID_TOGGLE)
         user32.UnregisterHotKey(self._hwnd, _ID_QUIT)
+        user32.UnregisterHotKey(self._hwnd, _ID_DEV_PANEL)
         self._enabled = False
         log.info("Hotkeys unregistered")
 
@@ -161,7 +171,12 @@ class HotkeyManager(QObject):
         """
         if self._hotkey_start is not None:
             log.info("Re-registering hotkeys after system resume")
-            self.register(self._hotkey_start, self._hotkey_quit, self._hwnd)
+            self.register(
+                self._hotkey_start,
+                self._hotkey_quit,
+                self._hwnd,
+                hotkey_dev_panel=self._hotkey_dev_panel or "ctrl+alt+d",
+            )
 
     def handle_wm_hotkey(self, hotkey_id: int) -> None:
         """Dispatch a ``WM_HOTKEY`` message received by the native event loop."""
@@ -169,6 +184,8 @@ class HotkeyManager(QObject):
             self.toggle_requested.emit()
         elif hotkey_id == _ID_QUIT:
             self.quit_requested.emit()
+        elif hotkey_id == _ID_DEV_PANEL:
+            self.dev_panel_toggle_requested.emit()
 
     @property
     def enabled(self) -> bool:

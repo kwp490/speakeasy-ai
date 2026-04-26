@@ -98,25 +98,21 @@ class TestProSettingsDialogStructure(unittest.TestCase):
 
 
 class TestSettingsDialogStructure(unittest.TestCase):
-    """Static source checks for SettingsDialog._save_and_accept."""
+    """SettingsDialog is now a thin shim wrapping SettingsWidget.
+    Verify the shim delegates to accept() directly (auto-apply model)."""
 
-    def setUp(self):
-        self.src = _method_source(
-            _SETTINGS_DIALOG_PATH, "SettingsDialog", "_save_and_accept"
-        )
-
-    def test_accept_called_unconditionally(self):
-        self.assertIn("self.accept()", self.src)
-
-    def test_save_wrapped_in_try(self):
-        self.assertIn("try:", self.src)
-        self.assertIn("s.save()", self.src)
-
-    def test_except_clause_present(self):
-        self.assertIn("except", self.src)
-
-    def test_error_dialog_shown_on_failure(self):
-        self.assertIn("QMessageBox.warning", self.src)
+    def test_settings_dialog_is_shim(self):
+        """SettingsDialog should wrap SettingsWidget, not have _save_and_accept."""
+        source = _SETTINGS_DIALOG_PATH.read_text(encoding="utf-8")
+        tree = ast.parse(source, filename=_SETTINGS_DIALOG_PATH.name)
+        sd_methods = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef) and node.name == "SettingsDialog":
+                for child in ast.walk(node):
+                    if isinstance(child, ast.FunctionDef):
+                        sd_methods.append(child.name)
+        self.assertNotIn("_save_and_accept", sd_methods,
+                         "SettingsDialog shim should not have _save_and_accept")
 
 
 class TestInstallerSettingsPermissions(unittest.TestCase):

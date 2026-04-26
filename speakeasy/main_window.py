@@ -16,21 +16,24 @@ from enum import Enum
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import QObject, QThreadPool, QTimer, Qt, Signal, Slot
-from PySide6.QtGui import QFont
+from PySide6.QtCore import QEasingCurve, QObject, QPoint, QPropertyAnimation, QRect, QThreadPool, QTimer, Qt, Property, Signal, Slot
+from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
+    QAbstractButton,
+    QApplication,
     QCheckBox,
     QComboBox,
+    QFrame,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QMainWindow,
     QMessageBox,
     QPlainTextEdit,
+    QProgressBar,
     QPushButton,
     QScrollArea,
     QSizePolicy,
-    QSplitter,
     QVBoxLayout,
     QWidget,
 )
@@ -40,14 +43,6 @@ import numpy as np
 from .audio import AudioRecorder, play_beep
 from .clipboard import set_clipboard_text, simulate_paste
 from ._constants import (
-    COLOR_DIMMED,
-    COLOR_ERROR,
-    COLOR_IDLE,
-    COLOR_INFO,
-    COLOR_NEUTRAL,
-    COLOR_SUCCESS,
-    COLOR_VALIDATED,
-    COLOR_WARNING,
     LOADING_TICK_MS,
     METRICS_POLL_MS,
     PBT_APMRESUMEAUTOMATIC,
@@ -111,6 +106,106 @@ class ModelStatus(str, Enum):
     ERROR = "Error"
 
 
+# ── Toggle switch widget ──────────────────────────────────────────────────────
+
+
+class ToggleSwitch(QAbstractButton):
+    """A modern oval toggle switch that replaces QCheckBox.
+
+    Drop-in replacement: supports setChecked(), isChecked(), and the
+    toggled(bool) signal inherited from QAbstractButton.
+    """
+
+    from .theme import Color as _TC, Motion as _TM
+    _TRACK_ON  = QColor(_TC.PRIMARY)
+    _TRACK_OFF = QColor(_TC.BORDER_SUBTLE)
+    _KNOB      = QColor("#ffffff")
+    _TRACK_W   = 44
+    _TRACK_H   = 24
+    _KNOB_D    = 18  # knob diameter
+
+    def __init__(self, text: str = "", parent=None):
+        super().__init__(parent)
+        self.setText(text)
+        self.setCheckable(True)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+
+        # Animated knob x-position: 0.0 = off (left), 1.0 = on (right)
+        self._knob_pos: float = 1.0 if self.isChecked() else 0.0
+
+        self._anim = QPropertyAnimation(self, b"knob_pos", self)
+        self._anim.setDuration(self._TM.DURATION_FAST_MS)
+        self._anim.setEasingCurve(QEasingCurve.Type.InOutQuad)
+
+        self.toggled.connect(self._on_toggled)
+
+    # ── Qt property for animation ─────────────────────────────────────────────
+
+    def _get_knob_pos(self) -> float:
+        return self._knob_pos
+
+    def _set_knob_pos(self, value: float) -> None:
+        self._knob_pos = value
+        self.update()
+
+    knob_pos = Property(float, _get_knob_pos, _set_knob_pos)
+
+    # ── Slots ─────────────────────────────────────────────────────────────────
+
+    def _on_toggled(self, checked: bool) -> None:
+        self._anim.stop()
+        self._anim.setStartValue(self._knob_pos)
+        self._anim.setEndValue(1.0 if checked else 0.0)
+        self._anim.start()
+
+    # ── Sizing ────────────────────────────────────────────────────────────────
+
+    def sizeHint(self):
+        from PySide6.QtCore import QSize
+        from PySide6.QtGui import QFontMetrics
+        text_w = QFontMetrics(self.font()).horizontalAdvance(self.text())
+        gap = 8 if self.text() else 0
+        return QSize(self._TRACK_W + gap + text_w, max(self._TRACK_H, 20))
+
+    # ── Painting ──────────────────────────────────────────────────────────────
+
+    def paintEvent(self, event) -> None:
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        # ── Track ─────────────────────────────────────────────────────────────
+        track_color = QColor(
+            int(self._TRACK_OFF.red()   + self._knob_pos * (self._TRACK_ON.red()   - self._TRACK_OFF.red())),
+            int(self._TRACK_OFF.green() + self._knob_pos * (self._TRACK_ON.green() - self._TRACK_OFF.green())),
+            int(self._TRACK_OFF.blue()  + self._knob_pos * (self._TRACK_ON.blue()  - self._TRACK_OFF.blue())),
+        )
+        track_rect = QRect(0, (self.height() - self._TRACK_H) // 2,
+                           self._TRACK_W, self._TRACK_H)
+        path = QPainterPath()
+        path.addRoundedRect(track_rect, self._TRACK_H / 2, self._TRACK_H / 2)
+        p.fillPath(path, track_color)
+
+        # ── Knob ──────────────────────────────────────────────────────────────
+        margin = (self._TRACK_H - self._KNOB_D) // 2
+        travel = self._TRACK_W - self._KNOB_D - 2 * margin
+        knob_x = int(margin + self._knob_pos * travel)
+        knob_y = (self.height() - self._KNOB_D) // 2
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(self._KNOB)
+        p.drawEllipse(knob_x, knob_y, self._KNOB_D, self._KNOB_D)
+
+        # ── Label text ────────────────────────────────────────────────────────
+        if self.text():
+            p.setPen(QPen(QColor("#cccccc")))
+            text_x = self._TRACK_W + 8
+            text_rect = QRect(text_x, 0, self.width() - text_x, self.height())
+            p.drawText(text_rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
+                       self.text())
+
+        p.end()
+
+
 # ── History entry ─────────────────────────────────────────────────────────────
 
 
@@ -162,11 +257,17 @@ class _HistoryEntry(QWidget):
         is_draft: bool = False,
     ):
         super().__init__(parent)
+        from .theme import Color, Spacing
         self._text = text
         self._is_draft = is_draft
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
-        row = QHBoxLayout(self)
-        row.setContentsMargins(4, 2, 4, 2)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        row_widget = QWidget()
+        row = QHBoxLayout(row_widget)
+        row.setContentsMargins(Spacing.XS, Spacing.XS, Spacing.XS, Spacing.XS)
 
         self._time_label = QLabel(f"<b>{timestamp}</b>")
         self._time_label.setFixedWidth(70)
@@ -177,7 +278,8 @@ class _HistoryEntry(QWidget):
         self._text_widget = self._build_text_widget(text, original_text)
 
         self._copy_btn = QPushButton("Copy")
-        self._copy_btn.setFixedWidth(50)
+        self._copy_btn.setMinimumWidth(70)
+        self._copy_btn.setFixedHeight(28)
         self._copy_btn.clicked.connect(self._copy)
         if is_draft:
             self._copy_btn.setEnabled(False)
@@ -186,6 +288,15 @@ class _HistoryEntry(QWidget):
         row.addWidget(self._status_label)
         row.addWidget(self._text_widget)
         row.addWidget(self._copy_btn)
+
+        outer.addWidget(row_widget)
+
+        separator = QFrame()
+        separator.setFrameShape(QFrame.Shape.HLine)
+        separator.setFrameShadow(QFrame.Shadow.Plain)
+        separator.setStyleSheet(f"color: {Color.BORDER};")
+        separator.setFixedHeight(1)
+        outer.addWidget(separator)
 
         if is_draft:
             self._apply_draft_style()
@@ -218,7 +329,8 @@ class _HistoryEntry(QWidget):
         self._text = text
         self._status_label.setText(self._status_text(success))
         # Rebuild text widget to pick up original/cleaned layout if needed.
-        layout = self.layout()
+        row_widget = self.layout().itemAt(0).widget()
+        layout = row_widget.layout()
         layout.removeWidget(self._text_widget)
         self._text_widget.deleteLater()
         self._text_widget = self._build_text_widget(text, original_text)
@@ -239,6 +351,7 @@ class _HistoryEntry(QWidget):
         return self._SUCCESS_ICON if success else self._ERROR_ICON
 
     def _build_text_widget(self, text: str, original_text: Optional[str]) -> QWidget:
+        from .theme import Color
         # Build text column — one or two labels depending on professional mode
         if original_text is not None:
             text_col = QVBoxLayout()
@@ -246,7 +359,7 @@ class _HistoryEntry(QWidget):
             text_col.setSpacing(1)
 
             orig_display = original_text if len(original_text) <= 120 else original_text[:117] + "…"
-            orig_label = _WordWrapLabel(f'<span style="color:{COLOR_DIMMED}">Original: {orig_display}</span>')
+            orig_label = _WordWrapLabel(f'<span style="color:{Color.TEXT_MUTED}">Original: {orig_display}</span>')
             orig_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
             orig_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
             text_col.addWidget(orig_label)
@@ -275,7 +388,8 @@ class _HistoryEntry(QWidget):
             self._text_widget.setText(display)
 
     def _apply_draft_style(self) -> None:
-        style = f'color:{COLOR_DIMMED}; font-style:italic;'
+        from .theme import Color
+        style = f'color:{Color.TEXT_MUTED}; font-style:italic;'
         if isinstance(self._text_widget, QLabel):
             display = self._text if len(self._text) <= 120 else self._text[:117] + "…"
             self._text_widget.setText(
@@ -302,6 +416,8 @@ class MainWindow(QMainWindow):
     def __init__(self, settings: Settings, engine=None):
         super().__init__()
         self.settings = settings
+        self._dev_panel: Optional["DeveloperPanel"] = None
+        self._log_buffer: list[str] = []  # holds lines until panel exists
         self._pool = QThreadPool.globalInstance()
         self._engine_pool = DedicatedWorkerPool(self)
         self._engine_pool.setMaxThreadCount(1)
@@ -396,62 +512,88 @@ class MainWindow(QMainWindow):
     # ═════════════════════════════════════════════════════════════════════════
 
     def _build_ui(self) -> None:
+        from .theme import Color, Font, Size, Spacing, primary_button_style, gear_button_style, danger_button_style
+
         central = QWidget()
         self.setCentralWidget(central)
         root = QVBoxLayout(central)
-        root.setSpacing(8)
+        root.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
+        root.setSpacing(Spacing.MD)
 
         # ── Transcription section (dominant) ─────────────────────────────────
-        btn_row = QHBoxLayout()
         self._btn_record = QPushButton("\U0001f3a4  Start Recording  (Ctrl+Alt+P)")
-        self._btn_record.setMinimumHeight(52)
-        self._btn_record.setStyleSheet("font-size: 14px;")
+        self._btn_record.setMinimumHeight(Size.BUTTON_HEIGHT_PRIMARY)
+        self._btn_record.setStyleSheet(primary_button_style())
         self._btn_record.clicked.connect(self._on_toggle_recording)
-        btn_row.addWidget(self._btn_record)
-        root.addLayout(btn_row)
+
+        # Record button + Developer Panel gear button, side-by-side
+        record_row = QHBoxLayout()
+        record_row.setContentsMargins(0, 0, 0, 0)
+        record_row.setSpacing(Spacing.SM)
+        record_row.addWidget(self._btn_record, stretch=1)
+
+        self._btn_dev_panel = QPushButton("\u2699")  # gear icon
+        self._btn_dev_panel.setToolTip("Open Developer Panel")
+        self._btn_dev_panel.setFixedSize(Size.BUTTON_HEIGHT_PRIMARY, Size.BUTTON_HEIGHT_PRIMARY)
+        self._btn_dev_panel.setStyleSheet(gear_button_style())
+        self._btn_dev_panel.setCheckable(True)
+        self._btn_dev_panel.clicked.connect(self._on_toggle_dev_panel)
+        record_row.addWidget(self._btn_dev_panel)
+        root.addLayout(record_row)
 
         # ── Status indicators (model + dictation) ────────────────────────────
         status_row_top = QHBoxLayout()
         self._lbl_global_status = QLabel()
-        self._lbl_global_status.setFont(QFont("Segoe UI", 10))
+        self._lbl_global_status.setTextFormat(Qt.TextFormat.RichText)
+        self._lbl_global_status.setFont(QFont(Font.FAMILY, Font.BODY[0]))
         status_row_top.addWidget(self._lbl_global_status)
         status_row_top.addStretch()
         root.addLayout(status_row_top)
         self._update_global_status()
 
-        # Row 1: output-behaviour toggles
-        toggle_row = QHBoxLayout()
-        self._chk_auto_copy = QCheckBox("Auto-copy to clipboard")
+        # Row 1: output-behaviour toggles (inline, no card)
+        quick_settings_row = QHBoxLayout()
+        quick_settings_row.setContentsMargins(0, 0, 0, 0)
+        quick_settings_row.setSpacing(Spacing.LG)
+        self._chk_auto_copy = ToggleSwitch("Auto-copy to clipboard")
         self._chk_auto_copy.setChecked(self.settings.auto_copy)
-        self._chk_auto_paste = QCheckBox("Auto-paste (Ctrl+V)")
+        self._chk_auto_paste = ToggleSwitch("Auto-paste (Ctrl+V)")
         self._chk_auto_paste.setChecked(self.settings.auto_paste)
-        self._chk_hotkeys = QCheckBox("Enable global hotkeys")
+        self._chk_hotkeys = ToggleSwitch("Enable global hotkeys")
         self._chk_hotkeys.setChecked(self.settings.hotkeys_enabled)
         self._chk_hotkeys.toggled.connect(self._on_hotkeys_toggled)
-        toggle_row.addWidget(self._chk_auto_copy)
-        toggle_row.addWidget(self._chk_auto_paste)
-        toggle_row.addWidget(self._chk_hotkeys)
-        toggle_row.addStretch()
-        root.addLayout(toggle_row)
+        quick_settings_row.addWidget(self._chk_auto_copy)
+        quick_settings_row.addWidget(self._chk_auto_paste)
+        quick_settings_row.addWidget(self._chk_hotkeys)
+        quick_settings_row.addStretch()
+        root.addLayout(quick_settings_row)
 
         # Row 2: Professional Mode toggle + preset selector
-        pro_row = QHBoxLayout()
-        self._chk_professional = QCheckBox("Professional Mode")
+        pro_mode_group = QGroupBox("Professional Mode")
+        pro_mode_layout = QHBoxLayout()
+        pro_mode_layout.setContentsMargins(Spacing.SM, Spacing.XS, Spacing.SM, Spacing.SM)
+        self._chk_professional = ToggleSwitch("Enable")
         self._chk_professional.setChecked(self.settings.professional_mode)
         self._chk_professional.toggled.connect(self._on_professional_toggled)
         self._combo_pro_preset = QComboBox()
-        self._combo_pro_preset.setMaximumWidth(180)
+        self._combo_pro_preset.setMaximumWidth(200)
         self._combo_pro_preset.setEnabled(self.settings.professional_mode)
         self._populate_pro_preset_combo()
         self._combo_pro_preset.currentTextChanged.connect(self._on_pro_preset_quick_select)
-        pro_row.addWidget(self._chk_professional)
-        pro_row.addWidget(self._combo_pro_preset)
-        pro_row.addStretch()
-        root.addLayout(pro_row)
+        pro_mode_layout.addWidget(self._chk_professional)
+        pro_mode_layout.addWidget(self._combo_pro_preset)
+        pro_mode_layout.addStretch()
+        pro_mode_group.setLayout(pro_mode_layout)
+        root.addWidget(pro_mode_group)
 
         # History header with contextual Clear button
         history_header = QHBoxLayout()
-        history_header.addWidget(QLabel("<b>Transcription History</b>"))
+        hist_label = QLabel("Transcription History")
+        _hfont = QFont(Font.FAMILY, Font.SECTION_HEADER[0])
+        _hfont.setWeight(QFont.Weight.DemiBold)
+        hist_label.setFont(_hfont)
+        hist_label.setStyleSheet(f"color: {Color.TEXT_HEADING};")
+        history_header.addWidget(hist_label)
         history_header.addStretch()
         self._btn_clear_history = QPushButton("\U0001f5d1  Clear History")
         self._btn_clear_history.clicked.connect(self._on_clear_history)
@@ -461,7 +603,7 @@ class MainWindow(QMainWindow):
         self._history_widget = QWidget()
         self._history_layout = QVBoxLayout(self._history_widget)
         self._history_layout.setContentsMargins(0, 0, 0, 0)
-        self._history_layout.setSpacing(2)
+        self._history_layout.setSpacing(Spacing.XS)
         self._history_layout.addStretch()
 
         scroll = QScrollArea()
@@ -470,155 +612,90 @@ class MainWindow(QMainWindow):
         scroll.setMinimumHeight(200)
         root.addWidget(scroll, stretch=1)
 
-        # ── Collapsible Advanced Diagnostics panel ───────────────────────────
-        self._diag_toggle = QPushButton("\u25b6 Advanced Diagnostics")
-        self._diag_toggle.setFlat(True)
-        self._diag_toggle.setStyleSheet(
-            "QPushButton { text-align: left; font-weight: bold; padding: 4px; }"
-        )
-        self._diag_toggle.clicked.connect(self._toggle_diagnostics)
-        root.addWidget(self._diag_toggle)
-
-        self._diag_content = QWidget()
-        diag_layout = QVBoxLayout(self._diag_content)
-        diag_layout.setContentsMargins(0, 0, 0, 0)
-
-        # Model Engine panel
-        engine_group = QGroupBox("Model Engine")
-        eg_layout = QVBoxLayout()
-
-        status_row = QHBoxLayout()
-        _init_device = "GPU" if self.settings.device == "cuda" else "CPU"
-        self._lbl_engine = QLabel(f"Engine: Cohere Transcribe  \u00b7  Device: {_init_device}")
-        self._lbl_model_status = QLabel("Status: Not loaded")
-        self._lbl_engine.setFont(QFont("Segoe UI", 10))
-        self._lbl_model_status.setFont(QFont("Segoe UI", 10))
-        status_row.addWidget(self._lbl_engine)
-        status_row.addWidget(self._lbl_model_status)
-        status_row.addStretch()
-        eg_layout.addLayout(status_row)
-
-        metrics_row = QHBoxLayout()
-        self._lbl_ram = QLabel("RAM: —")
-        self._lbl_vram = QLabel("VRAM: —")
-        self._lbl_gpu_info = QLabel("GPU: —")
-        self._lbl_ram.setFont(QFont("Segoe UI", 9))
-        self._lbl_vram.setFont(QFont("Segoe UI", 9))
-        self._lbl_gpu_info.setFont(QFont("Segoe UI", 9))
-        metrics_row.addWidget(self._lbl_ram)
-        metrics_row.addWidget(self._lbl_vram)
-        metrics_row.addWidget(self._lbl_gpu_info)
-        metrics_row.addStretch()
-        eg_layout.addLayout(metrics_row)
-
-        btn_row_engine = QHBoxLayout()
-        self._btn_reload = QPushButton("Reload Model")
-        self._btn_reload.clicked.connect(self._on_reload_model)
-        self._btn_validate = QPushButton("Validate")
-        self._btn_validate.clicked.connect(self._on_validate)
-        btn_row_engine.addWidget(self._btn_reload)
-        btn_row_engine.addWidget(self._btn_validate)
-        btn_row_engine.addStretch()
-        eg_layout.addLayout(btn_row_engine)
-
-        engine_group.setLayout(eg_layout)
-
-        # Log panel with contextual buttons in header
-        log_group = QGroupBox("Log")
-        lg_layout = QVBoxLayout()
-
-        log_header = QHBoxLayout()
-        log_header.addStretch()
-        self._btn_clear_logs = QPushButton("\U0001f5d1  Clear Logs")
-        self._btn_clear_logs.clicked.connect(self._on_clear_logs)
-        self._btn_copy_logs = QPushButton("\U0001f4cb  Copy Logs")
-        self._btn_copy_logs.clicked.connect(self._on_copy_logs)
-        log_header.addWidget(self._btn_clear_logs)
-        log_header.addWidget(self._btn_copy_logs)
-        lg_layout.addLayout(log_header)
-
+        # ── Hidden metric labels (updated by _on_metrics_result / _set_model_status,
+        #    forwarded to the Developer Panel when open) ──────────────────────
+        self._lbl_engine = QLabel()
+        self._lbl_model_status = QLabel()
+        self._lbl_ram = QLabel()
+        self._pb_ram = QProgressBar()
+        self._lbl_vram = QLabel()
+        self._pb_vram = QProgressBar()
+        self._lbl_gpu_info = QLabel()
         self._log_text = QPlainTextEdit()
-        self._log_text.setReadOnly(True)
         self._log_text.setMaximumBlockCount(500)
-        self._log_text.setFont(QFont("Consolas", 9))
-        lg_layout.addWidget(self._log_text)
-        log_group.setLayout(lg_layout)
-
-        # Splitter for engine + log inside diagnostics
-        splitter = QSplitter(Qt.Orientation.Vertical)
-        splitter.addWidget(engine_group)
-        splitter.addWidget(log_group)
-        splitter.setStretchFactor(0, 1)
-        splitter.setStretchFactor(1, 2)
-        diag_layout.addWidget(splitter)
-
-        self._diag_content.setVisible(False)
-        root.addWidget(self._diag_content)
 
         # ── Bottom buttons ───────────────────────────────────────────────────
         bottom_row = QHBoxLayout()
-        btn_settings = QPushButton("\u2699  Settings")
-        btn_settings.clicked.connect(self._on_open_settings)
-        btn_pro_settings = QPushButton("\u2695  Professional Mode Settings")
-        btn_pro_settings.clicked.connect(self._on_open_pro_settings)
+        bottom_row.setContentsMargins(0, Spacing.XS, 0, 0)
         btn_quit = QPushButton("Quit")
+        btn_quit.setStyleSheet(danger_button_style())
         btn_quit.clicked.connect(self.close)
-        bottom_row.addWidget(btn_settings)
-        bottom_row.addWidget(btn_pro_settings)
         bottom_row.addStretch()
         bottom_row.addWidget(btn_quit)
         root.addLayout(bottom_row)
 
+        # ── Global aesthetics ────────────────────────────────────────────────
+        from .theme import Font
+        QApplication.setFont(QFont(Font.FAMILY, Font.BODY[0]))
 
-
-    def _toggle_diagnostics(self) -> None:
-        """Show or hide the Advanced Diagnostics panel."""
-        was_hidden = self._diag_content.isHidden()
-        self._diag_content.setVisible(was_hidden)
-        self._diag_toggle.setText(
-            "\u25bc Advanced Diagnostics" if was_hidden
-            else "\u25b6 Advanced Diagnostics"
-        )
+        if self.settings.dev_panel_open:
+            # Defer so the main window is laid out before we snap to it
+            QTimer.singleShot(0, self._on_toggle_dev_panel)
 
     def _update_global_status(self) -> None:
         """Refresh the unified status bar with model, dictation, and professional mode state."""
+        from .theme import Color as TC
+
+        # Engine status
         model_color_map = {
-            ModelStatus.READY: COLOR_SUCCESS,
-            ModelStatus.VALIDATED: COLOR_VALIDATED,
-            ModelStatus.LOADING: COLOR_WARNING,
-            ModelStatus.NOT_LOADED: COLOR_NEUTRAL,
-            ModelStatus.VALIDATING: COLOR_INFO,
-            ModelStatus.ERROR: COLOR_ERROR,
+            ModelStatus.READY: TC.SUCCESS,
+            ModelStatus.VALIDATED: TC.SUCCESS,
+            ModelStatus.LOADING: TC.WARNING,
+            ModelStatus.NOT_LOADED: TC.TEXT_MUTED,
+            ModelStatus.VALIDATING: TC.INFO,
+            ModelStatus.ERROR: TC.DANGER,
         }
+        engine_color = model_color_map.get(self._model_status, TC.TEXT_MUTED)
+        device_label = "GPU" if self.settings.device == "cuda" else "CPU"
+        engine_display = self._engine.name.capitalize()
+        engine_seg = self._dot_segment(
+            f"{engine_display} ({device_label})", self._model_status.value, engine_color,
+        )
+
+        # Dictation status
         dict_color_map = {
-            DictationState.IDLE: COLOR_IDLE,
-            DictationState.RECORDING: COLOR_ERROR,
-            DictationState.PROCESSING: COLOR_WARNING,
-            DictationState.SUCCESS: COLOR_SUCCESS,
-            DictationState.ERROR: COLOR_ERROR,
+            DictationState.IDLE: TC.TEXT_MUTED,
+            DictationState.RECORDING: TC.DANGER,
+            DictationState.PROCESSING: TC.WARNING,
+            DictationState.SUCCESS: TC.SUCCESS,
+            DictationState.ERROR: TC.DANGER,
         }
-        m_color = model_color_map.get(self._model_status, COLOR_NEUTRAL)
-        d_color = dict_color_map.get(self._dictation_state, COLOR_IDLE)
+        dict_color = dict_color_map.get(self._dictation_state, TC.TEXT_MUTED)
+        dict_seg = self._dot_segment("Dictation", self._dictation_state.value, dict_color)
 
         # Professional mode status
         if self.settings.professional_mode and self._text_processor is not None:
             pro_text = self.settings.pro_active_preset
-            pro_color = COLOR_SUCCESS
+            pro_color = TC.SUCCESS
         elif self.settings.professional_mode:
-            pro_text = 'No API Key'
-            pro_color = COLOR_WARNING
+            pro_text = "No API Key"
+            pro_color = TC.WARNING
         else:
-            pro_text = 'Inactive'
-            pro_color = COLOR_NEUTRAL
+            pro_text = "Inactive"
+            pro_color = TC.TEXT_MUTED
 
-        device_label = "GPU" if self.settings.device == "cuda" else "CPU"
-        engine_display = self._engine.name.capitalize()
+        pro_seg = self._dot_segment("Professional", pro_text, pro_color)
         self._lbl_global_status.setText(
-            f'{engine_display} ({device_label}): <span style="color:{m_color}"><b>{self._model_status.value}</b></span>'
-            f'  \u00b7  '
-            f'Dictation: <span style="color:{d_color}"><b>{self._dictation_state.value}</b></span>'
-            f'  \u00b7  '
-            f'Professional: <span style="color:{pro_color}"><b>{pro_text}</b></span>'
+            "&nbsp;&nbsp;\u2022&nbsp;&nbsp;".join([engine_seg, dict_seg, pro_seg])
+        )
+
+    @staticmethod
+    def _dot_segment(label: str, value: str, value_color: str) -> str:
+        from .theme import Color as TC
+        return (
+            f'<span style="color: {value_color};">\u25cf</span>'
+            f'<span style="color: {TC.TEXT_MUTED};"> {label}: </span>'
+            f'<span style="color: {value_color}; font-weight: 500;">{value}</span>'
         )
 
     # ═════════════════════════════════════════════════════════════════════════
@@ -634,7 +711,22 @@ class MainWindow(QMainWindow):
 
     @Slot(str)
     def _append_log(self, msg: str) -> None:
-        self._log_text.appendPlainText(msg)
+        # Write to inline log (while it exists) and to panel
+        if hasattr(self, "_log_text"):
+            self._log_text.appendPlainText(msg)
+        if self._dev_panel is not None:
+            self._dev_panel.logs_widget.log_text.append_log_line(msg)
+        else:
+            self._log_buffer.append(msg)
+            if len(self._log_buffer) > 500:
+                self._log_buffer = self._log_buffer[-500:]
+
+    def _flush_log_buffer(self) -> None:
+        if self._dev_panel is None:
+            return
+        for line in self._log_buffer:
+            self._dev_panel.logs_widget.log_text.append_log_line(line)
+        self._log_buffer.clear()
 
     def _log_ui(self, msg: str, error: bool = False) -> None:
         if error:
@@ -662,11 +754,13 @@ class MainWindow(QMainWindow):
     def _connect_hotkeys(self) -> None:
         self._hotkey_mgr.toggle_requested.connect(self._on_toggle_recording)
         self._hotkey_mgr.quit_requested.connect(self.close)
+        self._hotkey_mgr.dev_panel_toggle_requested.connect(self._on_toggle_dev_panel)
         if self.settings.hotkeys_enabled:
             self._hotkey_mgr.register(
                 self.settings.hotkey_start,
                 self.settings.hotkey_quit,
                 hwnd=int(self.winId()),
+                hotkey_dev_panel=self.settings.hotkey_dev_panel,
             )
 
     @Slot(bool)
@@ -676,6 +770,7 @@ class MainWindow(QMainWindow):
                 self.settings.hotkey_start,
                 self.settings.hotkey_quit,
                 hwnd=int(self.winId()),
+                hotkey_dev_panel=self.settings.hotkey_dev_panel,
             )
             self._log_ui("Global hotkeys enabled")
         else:
@@ -687,19 +782,24 @@ class MainWindow(QMainWindow):
     # ═════════════════════════════════════════════════════════════════════════
 
     def _set_model_status(self, status: ModelStatus) -> None:
+        from .theme import Color as TC
         self._model_status = status
         color_map = {
-            ModelStatus.READY: COLOR_SUCCESS,
-            ModelStatus.VALIDATED: COLOR_VALIDATED,
-            ModelStatus.LOADING: COLOR_WARNING,
-            ModelStatus.NOT_LOADED: COLOR_NEUTRAL,
-            ModelStatus.VALIDATING: COLOR_INFO,
-            ModelStatus.ERROR: COLOR_ERROR,
+            ModelStatus.READY: TC.SUCCESS,
+            ModelStatus.VALIDATED: TC.SUCCESS,
+            ModelStatus.LOADING: TC.WARNING,
+            ModelStatus.NOT_LOADED: TC.TEXT_MUTED,
+            ModelStatus.VALIDATING: TC.INFO,
+            ModelStatus.ERROR: TC.DANGER,
         }
-        color = color_map.get(status, COLOR_NEUTRAL)
+        color = color_map.get(status, TC.TEXT_MUTED)
         self._lbl_model_status.setText(
             f'Status: <span style="color:{color}"><b>{status.value}</b></span>'
         )
+        if self._dev_panel is not None:
+            self._dev_panel.realtime_widget.update_engine_status(
+                self._engine.name, self.settings.device, status.value, color,
+            )
         self._update_global_status()
         self._refresh_dictation_buttons()
 
@@ -735,10 +835,11 @@ class MainWindow(QMainWindow):
 
     def _update_loading_label(self) -> None:
         """Update the status label with elapsed loading time."""
+        from .theme import Color as TC
         if self._model_status == ModelStatus.LOADING:
             elapsed = int(time.time() - self._model_load_start)
             self._lbl_model_status.setText(
-                f'Status: <span style="color:{COLOR_WARNING}"><b>Loading… {elapsed}s</b></span>'
+                f'Status: <span style="color:{TC.WARNING}"><b>Loading… {elapsed}s</b></span>'
             )
 
     @Slot()
@@ -763,33 +864,62 @@ class MainWindow(QMainWindow):
 
     @Slot(object)
     def _on_metrics_result(self, metrics) -> None:
+        from .theme import Color as TC
+
+        def _bar_color(pct: float) -> str:
+            if pct > 90:
+                return TC.DANGER
+            if pct > 75:
+                return TC.WARNING
+            return TC.PRIMARY
+
+        def _bar_style(pct: float) -> str:
+            c = _bar_color(pct)
+            return (
+                f"QProgressBar {{ border: 1px solid {TC.BORDER}; border-radius: 3px; background: {TC.INPUT_BG}; }}"
+                f"QProgressBar::chunk {{ background-color: {c}; border-radius: 3px; }}"
+            )
+
         if metrics.ram_total_gb > 0:
             self._lbl_ram.setText(
                 f"RAM: {metrics.ram_used_gb:.1f} / {metrics.ram_total_gb:.1f} GB "
                 f"({metrics.ram_percent:.0f}%)"
             )
+            self._pb_ram.setValue(int(metrics.ram_percent))
+            self._pb_ram.setStyleSheet(_bar_style(metrics.ram_percent))
         else:
             self._lbl_ram.setText("RAM: —")
+            self._pb_ram.setValue(0)
 
         gpu = metrics.gpu
         if VARIANT != "cpu" and gpu.vram_total_gb > 0:
             pct = gpu.vram_percent
-            if pct > 90:
-                color = COLOR_ERROR
-            elif pct > 75:
-                color = COLOR_WARNING
-            else:
-                color = COLOR_SUCCESS
+            vram_text_color = _bar_color(pct)
             self._lbl_vram.setText(
-                f'VRAM: <span style="color:{color}"><b>{gpu.vram_used_gb:.1f}</b></span>'
+                f'VRAM: <span style="color:{vram_text_color}"><b>{gpu.vram_used_gb:.1f}</b></span>'
                 f" / {gpu.vram_total_gb:.1f} GB ({pct:.0f}%)"
             )
+            self._pb_vram.setValue(int(pct))
+            self._pb_vram.setStyleSheet(_bar_style(pct))
             self._lbl_gpu_info.setText(f"GPU: {gpu.name} ({gpu.temperature_c}°C)")
         else:
             self._lbl_vram.setText("VRAM: —")
+            self._pb_vram.setValue(0)
             self._lbl_gpu_info.setText("GPU: —")
 
-    # ── Validate ──────────────────────────────────────────────────────────────
+        # Forward to Developer Panel
+        if self._dev_panel is not None:
+            rw = self._dev_panel.realtime_widget
+            rw.update_ram(metrics.ram_used_gb, metrics.ram_total_gb, metrics.ram_percent)
+            gpu = metrics.gpu
+            if VARIANT != "cpu" and gpu.vram_total_gb > 0:
+                rw.update_vram(gpu.vram_used_gb, gpu.vram_total_gb, gpu.vram_percent)
+                rw.update_gpu(f"{gpu.name} ({gpu.temperature_c}°C)")
+            else:
+                rw.update_vram(0, 0, 0)
+                rw.update_gpu("—")
+
+    # —— Validate ——————————————————————————————————————————————————————————————
 
     @Slot()
     def _on_validate(self) -> None:
@@ -1068,6 +1198,12 @@ class MainWindow(QMainWindow):
             return  # already handled (e.g. by timeout)
         ts, original = ctx
         cleaned = str(cleaned_raw).strip()
+
+        # Forward token stats to Developer Panel
+        if self._dev_panel is not None and self._text_processor is not None:
+            tps, ti, to = self._text_processor.token_stats
+            self._dev_panel.realtime_widget.update_tokens(tps, ti, to)
+
         if cleaned and cleaned != original:
             self._log_ui(f"Professional cleanup: {len(original)} -> {len(cleaned)} chars")
             self._add_history(ts, cleaned, success=True, original_text=original)
@@ -1239,13 +1375,18 @@ class MainWindow(QMainWindow):
     def _on_clear_logs(self) -> None:
         """Clear the UI log panel and on-disk log files."""
         self._log_text.clear()
+        if self._dev_panel is not None:
+            self._dev_panel.logs_widget.log_text.clear()
         self._delete_log_files()
         self._log_ui("Logs cleared")
 
     @Slot()
     def _on_copy_logs(self) -> None:
         """Copy all visible log text to the clipboard."""
-        text = self._log_text.toPlainText()
+        if self._dev_panel is not None:
+            text = self._dev_panel.logs_widget.log_text.toPlainText()
+        else:
+            text = self._log_text.toPlainText()
         if text:
             if set_clipboard_text(text):
                 self._log_ui("Logs copied to clipboard")
@@ -1331,6 +1472,28 @@ class MainWindow(QMainWindow):
                 )
                 if reply == QMessageBox.StandardButton.Yes:
                     self._on_reload_model()
+
+    def _on_toggle_dev_panel(self) -> None:
+        """Show or hide the Developer Panel; create it lazily."""
+        from .developer_panel import DeveloperPanel
+        if self._dev_panel is None:
+            self._dev_panel = DeveloperPanel(self.settings, self)
+            self._dev_panel.closed.connect(self._on_dev_panel_closed)
+            self._flush_log_buffer()
+        if self._dev_panel.isVisible():
+            self._dev_panel.hide()
+            self._btn_dev_panel.setChecked(False)
+            self.settings.dev_panel_open = False
+        else:
+            self._dev_panel.show_snapped()
+            self._btn_dev_panel.setChecked(True)
+            self.settings.dev_panel_open = True
+        self.settings.save()
+
+    def _on_dev_panel_closed(self) -> None:
+        self._btn_dev_panel.setChecked(False)
+        self.settings.dev_panel_open = False
+        self.settings.save()
 
     # ── Cohere model setup helpers ────────────────────────────────────────────
 
@@ -1527,7 +1690,10 @@ class MainWindow(QMainWindow):
 
         # Hotkeys
         if s.hotkeys_enabled:
-            self._hotkey_mgr.register(s.hotkey_start, s.hotkey_quit, hwnd=int(self.winId()))
+            self._hotkey_mgr.register(
+                s.hotkey_start, s.hotkey_quit, hwnd=int(self.winId()),
+                hotkey_dev_panel=s.hotkey_dev_panel,
+            )
         else:
             self._hotkey_mgr.unregister()
         self._chk_hotkeys.setChecked(s.hotkeys_enabled)
@@ -1555,44 +1721,46 @@ class MainWindow(QMainWindow):
 
     @Slot()
     def _on_open_pro_settings(self) -> None:
-        """Open the Professional Mode settings dialog."""
-        from .pro_settings_dialog import ProSettingsDialog
+        """Open the Developer Panel on the Pro Mode tab."""
+        from .developer_panel import TAB_PRO
 
-        dlg = ProSettingsDialog(
-            settings=self.settings,
-            presets=self._pro_presets,
-            presets_dir=DEFAULT_PRESETS_DIR,
-            parent=self,
-            api_key=self._api_key,
-        )
-        if dlg.exec() == ProSettingsDialog.DialogCode.Accepted:
-            self._api_key = dlg.api_key
-            self._pro_presets = dlg.presets
+        if self._dev_panel is None:
+            self._on_toggle_dev_panel()
+        if self._dev_panel is not None:
+            self._dev_panel.show_snapped()
+            self._dev_panel.activate_tab(TAB_PRO)
+
+    def _on_pro_mode_applied(self) -> None:
+        """Handle settings_applied from the ProModeWidget in the Developer Panel."""
+        if self._dev_panel is not None:
+            pw = self._dev_panel.pro_mode_widget
+            self._api_key = pw.api_key
+            self._pro_presets = pw.presets
             self._active_preset = self._pro_presets.get(
                 self.settings.pro_active_preset,
             )
 
-            # Re-create or destroy TextProcessor based on new state
-            if self.settings.professional_mode and self._api_key and self._active_preset:
-                model = self._active_preset.model or "gpt-5.4-mini"
-                self._text_processor = TextProcessor(
-                    api_key=self._api_key, model=model,
+        # Re-create or destroy TextProcessor based on new state
+        if self.settings.professional_mode and self._api_key and self._active_preset:
+            model = self._active_preset.model or "gpt-5.4-mini"
+            self._text_processor = TextProcessor(
+                api_key=self._api_key, model=model,
+            )
+            self._log_ui("Professional Mode enabled")
+        else:
+            self._text_processor = None
+            if self.settings.professional_mode and not self._api_key:
+                self._log_ui(
+                    "Professional Mode enabled but no API key configured",
+                    error=True,
                 )
-                self._log_ui("Professional Mode enabled")
-            else:
-                self._text_processor = None
-                if self.settings.professional_mode and not self._api_key:
-                    self._log_ui(
-                        "Professional Mode enabled but no API key configured",
-                        error=True,
-                    )
 
-            self._chk_professional.blockSignals(True)
-            self._chk_professional.setChecked(self.settings.professional_mode)
-            self._chk_professional.blockSignals(False)
-            self._combo_pro_preset.setEnabled(self.settings.professional_mode)
-            self._populate_pro_preset_combo()
-            self._update_global_status()
+        self._chk_professional.blockSignals(True)
+        self._chk_professional.setChecked(self.settings.professional_mode)
+        self._chk_professional.blockSignals(False)
+        self._combo_pro_preset.setEnabled(self.settings.professional_mode)
+        self._populate_pro_preset_combo()
+        self._update_global_status()
 
     def _populate_pro_preset_combo(self) -> None:
         """Populate the preset quick-select combo from the current presets dict."""
@@ -1750,6 +1918,16 @@ class MainWindow(QMainWindow):
     # CLEANUP
     # ═════════════════════════════════════════════════════════════════════════
 
+    def moveEvent(self, event):
+        super().moveEvent(event)
+        if self._dev_panel and self._dev_panel.isVisible():
+            self._dev_panel.on_main_window_moved()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if self._dev_panel and self._dev_panel.isVisible():
+            self._dev_panel.on_main_window_moved()
+
     def closeEvent(self, event) -> None:
         """Graceful shutdown."""
         self._log_ui("Shutting down…")
@@ -1769,3 +1947,6 @@ class MainWindow(QMainWindow):
         if self.settings.clear_logs_on_exit:
             self._delete_log_files()
         event.accept()
+        # Explicitly quit the application so that any open modal dialogs
+        # (e.g. Settings) don't keep the process alive.
+        QApplication.instance().quit()

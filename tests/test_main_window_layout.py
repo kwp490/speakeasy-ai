@@ -56,14 +56,14 @@ class TestLayoutStructure(unittest.TestCase):
         self.assertNotIn('QGroupBox("Dictation")', src)
 
     def test_start_button_height_increased(self):
-        """Start Recording button must have minimumHeight >= 50."""
+        """Start Recording button must use theme Size for minimum height."""
         src = self._get_method_source("_build_ui")
-        self.assertIn("setMinimumHeight(52)", src)
+        self.assertIn("setMinimumHeight(Size.BUTTON_HEIGHT_PRIMARY)", src)
 
     def test_start_button_font_increased(self):
-        """Start/Stop buttons must have increased font-size."""
+        """Start/Stop buttons must use primary_button_style."""
         src = self._get_method_source("_build_ui")
-        self.assertIn("font-size: 14px", src)
+        self.assertIn("primary_button_style()", src)
 
     def test_history_min_height_increased(self):
         """History scroll area must have minimumHeight >= 200."""
@@ -77,28 +77,24 @@ class TestLayoutStructure(unittest.TestCase):
 
     # â”€â”€ Phase 2 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-    def test_diag_toggle_exists(self):
-        """_build_ui must create self._diag_toggle."""
+    def test_dev_panel_gear_button_exists(self):
+        """_build_ui must create self._btn_dev_panel (gear button)."""
         src = self._get_method_source("_build_ui")
-        self.assertIn("self._diag_toggle", src)
+        self.assertIn("self._btn_dev_panel", src)
 
-    def test_diag_content_exists(self):
-        """_build_ui must create self._diag_content."""
+    def test_no_inline_diagnostics(self):
+        """Inline diagnostics block must be removed (replaced by Developer Panel)."""
         src = self._get_method_source("_build_ui")
-        self.assertIn("self._diag_content", src)
+        self.assertNotIn("self._diag_toggle", src)
+        self.assertNotIn("self._diag_content", src)
 
-    def test_diag_hidden_by_default(self):
-        """Diagnostics content must be hidden by default."""
-        src = self._get_method_source("_build_ui")
-        self.assertIn("self._diag_content.setVisible(False)", src)
-
-    def test_toggle_diagnostics_method_exists(self):
-        """_toggle_diagnostics method must exist."""
+    def test_toggle_dev_panel_method_exists(self):
+        """_toggle_dev_panel method must exist."""
         method_names = [
             n.name for n in ast.walk(self._mw_class)
             if isinstance(n, ast.FunctionDef)
         ]
-        self.assertIn("_toggle_diagnostics", method_names)
+        self.assertIn("_on_toggle_dev_panel", method_names)
 
     # â”€â”€ Phase 3 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -162,15 +158,21 @@ class TestLayoutStructure(unittest.TestCase):
         src = self._get_method_source("_build_ui")
         self.assertIn("_btn_clear_history", src)
 
-    def test_clear_logs_button_in_build_ui(self):
-        """_btn_clear_logs must be created in _build_ui."""
-        src = self._get_method_source("_build_ui")
-        self.assertIn("_btn_clear_logs", src)
+    def test_clear_logs_method_exists(self):
+        """_on_clear_logs must be defined in MainWindow."""
+        method_names = [
+            n.name for n in ast.walk(self._mw_class)
+            if isinstance(n, ast.FunctionDef)
+        ]
+        self.assertIn("_on_clear_logs", method_names)
 
-    def test_copy_logs_button_in_build_ui(self):
-        """_btn_copy_logs must be created in _build_ui."""
-        src = self._get_method_source("_build_ui")
-        self.assertIn("_btn_copy_logs", src)
+    def test_copy_logs_method_exists(self):
+        """_on_copy_logs must be defined in MainWindow."""
+        method_names = [
+            n.name for n in ast.walk(self._mw_class)
+            if isinstance(n, ast.FunctionDef)
+        ]
+        self.assertIn("_on_copy_logs", method_names)
 
     # â”€â”€ Phase 5 (professional mode button in footer) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -192,10 +194,10 @@ class TestLayoutStructure(unittest.TestCase):
         ]
         self.assertNotIn("_on_pro_toggle", method_names)
 
-    def test_pro_settings_button_in_build_ui(self):
-        """Professional Mode Settings button must be in _build_ui footer."""
+    def test_no_pro_settings_button_in_build_ui(self):
+        """Pro Mode Settings button removed — now in Developer Panel."""
         src = self._get_method_source("_build_ui")
-        self.assertIn("Professional Mode Settings", src)
+        self.assertNotIn("Pro Mode Settings", src)
 
     def test_on_open_pro_settings_method_exists(self):
         """_on_open_pro_settings must be defined in MainWindow."""
@@ -278,10 +280,10 @@ class TestLayoutStructure(unittest.TestCase):
     # â”€â”€ Phase 6 (professional mode quick-toggle checkbox) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def test_chk_professional_in_build_ui(self):
-        """_chk_professional checkbox must be created in _build_ui."""
+        """_chk_professional toggle must be created in _build_ui."""
         src = self._get_method_source("_build_ui")
         self.assertIn("self._chk_professional", src)
-        self.assertIn('QCheckBox("Professional Mode")', src)
+        self.assertIn('ToggleSwitch("Enable")', src)
 
     def test_chk_professional_connected_to_toggled(self):
         """_chk_professional must be connected to _on_professional_toggled."""
@@ -306,9 +308,9 @@ class TestLayoutStructure(unittest.TestCase):
         src = self._get_method_source("_on_professional_toggled")
         self.assertIn("No Preset Configured", src)
 
-    def test_pro_settings_syncs_checkbox(self):
-        """_on_open_pro_settings must sync _chk_professional after dialog."""
-        src = self._get_method_source("_on_open_pro_settings")
+    def test_on_pro_mode_applied_syncs_checkbox(self):
+        """_on_pro_mode_applied must sync _chk_professional."""
+        src = self._get_method_source("_on_pro_mode_applied")
         self.assertIn("_chk_professional.setChecked", src)
         self.assertIn("_chk_professional.blockSignals", src)
 
@@ -356,38 +358,34 @@ class TestDiagnosticsToggleLive(unittest.TestCase):
             _mw.DEFAULT_PRESETS_DIR = orig
         return win
 
-    def test_diagnostics_hidden_by_default(self):
-        """Diagnostics content must be hidden on construction."""
+    def test_log_text_exists(self):
+        """Hidden _log_text widget must still exist for buffering."""
         win = self._make_window()
         try:
-            self.assertTrue(win._diag_content.isHidden())
+            self.assertIsNotNone(win._log_text)
         finally:
             win.close()
 
-    def test_toggle_shows_diagnostics(self):
-        """Clicking the toggle must show diagnostics content."""
+    def test_dev_panel_not_created_by_default(self):
+        """Developer Panel must not be created on construction."""
         win = self._make_window()
         try:
-            win._diag_toggle.click()
-            self.assertFalse(win._diag_content.isHidden())
+            self.assertIsNone(win._dev_panel)
         finally:
             win.close()
 
-    def test_toggle_twice_hides_diagnostics(self):
-        """Two clicks must hide diagnostics again."""
+    def test_gear_button_exists(self):
+        """Gear button must exist for opening the Developer Panel."""
         win = self._make_window()
         try:
-            win._diag_toggle.click()
-            win._diag_toggle.click()
-            self.assertTrue(win._diag_content.isHidden())
+            self.assertIsNotNone(win._btn_dev_panel)
         finally:
             win.close()
 
-    def test_log_captured_while_hidden(self):
-        """Log text must accumulate even when diagnostics is collapsed."""
+    def test_log_captured_to_hidden_widget(self):
+        """Log text must accumulate in the hidden _log_text widget."""
         win = self._make_window()
         try:
-            self.assertFalse(win._diag_content.isVisible())
             win._log_text.appendPlainText("test log message")
             self.assertIn("test log message", win._log_text.toPlainText())
         finally:
@@ -404,18 +402,18 @@ class TestDiagnosticsToggleLive(unittest.TestCase):
             win.close()
 
     def test_start_button_height(self):
-        """Record button must have minimum height >= 50."""
+        """Record button must have minimum height >= 48."""
         win = self._make_window()
         try:
-            self.assertGreaterEqual(win._btn_record.minimumHeight(), 50)
+            self.assertGreaterEqual(win._btn_record.minimumHeight(), 48)
         finally:
             win.close()
 
     def test_record_button_height(self):
-        """Record button must have minimum height >= 50."""
+        """Record button must have minimum height >= 48."""
         win = self._make_window()
         try:
-            self.assertGreaterEqual(win._btn_record.minimumHeight(), 50)
+            self.assertGreaterEqual(win._btn_record.minimumHeight(), 48)
         finally:
             win.close()
 
@@ -426,7 +424,7 @@ class TestDiagnosticsToggleLive(unittest.TestCase):
         win = self._make_window()
         try:
             self.assertIsNotNone(win._chk_professional)
-            self.assertEqual(win._chk_professional.text(), "Professional Mode")
+            self.assertEqual(win._chk_professional.text(), "Enable")
         finally:
             win.close()
 

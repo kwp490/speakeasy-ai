@@ -84,6 +84,14 @@ class Settings:
     store_api_key: bool = False
     pro_disclosure_accepted: bool = False  # True once user acknowledges data-privacy notice
 
+    # ── Developer Panel ──────────────────────────────────────────────────────
+    dev_panel_open: bool = False
+    dev_panel_active_tab: str = "settings"   # one of: settings, realtime, logs, pro
+    dev_panel_width: int = 480
+    dev_panel_height: int = 720
+    dev_panel_snapped: bool = True           # True = follows main window's right edge
+    hotkey_dev_panel: str = "ctrl+alt+d"     # user-configurable in Hotkeys section
+
     # ── Helpers ───────────────────────────────────────────────────────────────
 
     _VALID_ENGINES = {"cohere"}
@@ -108,6 +116,15 @@ class Settings:
             self.inference_timeout = 30
         if self.silence_threshold <= 0:
             self.silence_threshold = 0.0015
+        valid_tabs = {"settings", "realtime", "logs", "pro"}
+        if self.dev_panel_active_tab not in valid_tabs:
+            self.dev_panel_active_tab = "settings"
+        if self.dev_panel_width < 320:
+            self.dev_panel_width = 480
+        if self.dev_panel_width > 800:
+            self.dev_panel_width = 800
+        if self.dev_panel_height < 400:
+            self.dev_panel_height = 720
 
     def save(self, path: Path | None = None) -> None:
         """Persist settings to JSON file."""

@@ -28,28 +28,31 @@ def _qt_available() -> bool:
 
 
 class TestSettingsDialogProModeRemoved(unittest.TestCase):
-    """AST-level checks confirming Professional Mode is NOT in SettingsDialog."""
+    """AST-level checks confirming Professional Mode is NOT in SettingsWidget."""
 
     @classmethod
     def setUpClass(cls):
         cls._source = _SETTINGS_DIALOG_PATH.read_text(encoding="utf-8")
         cls._tree = ast.parse(cls._source, filename="settings_dialog.py")
+        cls._sw_class = None
         cls._sd_class = None
         for node in ast.walk(cls._tree):
+            if isinstance(node, ast.ClassDef) and node.name == "SettingsWidget":
+                cls._sw_class = node
             if isinstance(node, ast.ClassDef) and node.name == "SettingsDialog":
                 cls._sd_class = node
-                break
-        assert cls._sd_class is not None
+        assert cls._sw_class is not None, "SettingsWidget not found"
+        assert cls._sd_class is not None, "SettingsDialog not found"
 
     def _get_method_source(self, method_name: str) -> str:
-        for node in ast.walk(self._sd_class):
+        for node in ast.walk(self._sw_class):
             if isinstance(node, ast.FunctionDef) and node.name == method_name:
                 return ast.get_source_segment(self._source, node) or ""
-        self.fail(f"Method '{method_name}' not found in SettingsDialog")
+        self.fail(f"Method '{method_name}' not found in SettingsWidget")
 
     def _get_method_names(self):
         return [
-            n.name for n in ast.walk(self._sd_class)
+            n.name for n in ast.walk(self._sw_class)
             if isinstance(n, ast.FunctionDef)
         ]
 
@@ -85,26 +88,6 @@ class TestSettingsDialogProModeRemoved(unittest.TestCase):
         # api_key can appear in comments; check for the property definition
         self.assertNotIn("def api_key", self._source)
 
-    def test_save_does_not_write_professional_mode(self):
-        """_save_and_accept must NOT write s.professional_mode."""
-        src = self._get_method_source("_save_and_accept")
-        self.assertNotIn("professional_mode", src)
-
-    def test_save_does_not_write_pro_active_preset(self):
-        """_save_and_accept must NOT write s.pro_active_preset."""
-        src = self._get_method_source("_save_and_accept")
-        self.assertNotIn("pro_active_preset", src)
-
-    def test_init_no_pro_presets_kwarg(self):
-        """__init__ must NOT accept pro_presets parameter."""
-        src = self._get_method_source("__init__")
-        self.assertNotIn("pro_presets", src)
-
-    def test_init_no_api_key_kwarg(self):
-        """__init__ must NOT accept api_key parameter."""
-        src = self._get_method_source("__init__")
-        self.assertNotIn("api_key", src)
-
     # â”€â”€ Core settings still present â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def test_audio_group_in_build_ui(self):
@@ -113,9 +96,9 @@ class TestSettingsDialogProModeRemoved(unittest.TestCase):
         self.assertIn("Audio", src)
 
     def test_ux_group_in_build_ui(self):
-        """_build_ui must still contain Dictation UX group."""
+        """_build_ui must still contain UX Behavior section."""
         src = self._get_method_source("_build_ui")
-        self.assertIn("Dictation UX", src)
+        self.assertIn("UX Behavior", src)
 
 
 # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•

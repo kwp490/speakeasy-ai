@@ -5,6 +5,30 @@ All notable changes to SpeakEasy AI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - Developer Panel & UI Overhaul
+
+### Added
+- **Developer Panel**: Snappable side window (toggle with **Ctrl+Alt+D**) with four tabs:
+  - **Settings** — quick access to engine, audio, and UX settings via reusable `SettingsWidget`
+  - **Realtime** — live engine status, RAM/VRAM progress bars, GPU metrics, and token throughput sparkline
+  - **Logs** — scrollable read-only application log viewer with clear and copy buttons (500-block rolling buffer)
+  - **Pro Mode** — embedded Professional Mode configuration (API key, presets, vocabulary)
+- **Design token system** (`theme.py`): single source of truth for colors, typography, spacing, and stylesheet helpers
+- **`RealtimeDataWidget`**: live engine monitoring with RAM/VRAM usage, GPU temperature/utilization, and reload/validate actions
+- **`TokenSparkline`**: custom-painted line chart for real-time token throughput visualization
+- **`LogsWidget`**: application log display with real-time streaming from `QtLogHandler`
+- **`ProModeWidget`**: embeddable Professional Mode UI for API key, preset, and instruction management
+- Six new developer panel settings: `dev_panel_open`, `dev_panel_active_tab`, `dev_panel_width`, `dev_panel_height`, `dev_panel_snapped`, `hotkey_dev_panel`
+- Dev dependencies: `pytest-qt`, `pytest-cov`, `pytest-mock`
+- Comprehensive test suite for Developer Panel, RealtimeDataWidget, TokenSparkline, LogsWidget, ProModeWidget, and SettingsWidget
+
+### Changed
+- **Settings Dialog**: simplified by extracting Professional Mode section into dedicated `ProSettingsDialog`; now focuses on engine, audio, and UX settings
+- **Hotkey system**: added Developer Panel toggle hotkey (Ctrl+Alt+D) with `dev_panel_toggle_requested` signal
+- **Main window**: refactored to manage Developer Panel lifecycle, snapping behavior, and state persistence
+
+---
+
 ## [0.5.1] - Per-User Logs & Hardening
 
 ### Changed

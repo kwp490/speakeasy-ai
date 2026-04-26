@@ -111,6 +111,10 @@ class TextProcessor:
         self._api_key = api_key
         self._model = model
         self._client: Optional[OpenAI] = None
+        # Cumulative token counters for Developer Panel throughput display
+        self._total_input_tokens: int = 0
+        self._total_output_tokens: int = 0
+        self._last_tok_per_sec: float = 0.0
         self._ensure_client()
 
     def _ensure_client(self) -> None:
@@ -169,6 +173,8 @@ class TextProcessor:
             return text
 
         try:
+            import time as _time
+            _t0 = _time.monotonic()
             response = self._client.chat.completions.create(
                 model=model,
                 messages=[
@@ -177,6 +183,22 @@ class TextProcessor:
                 ],
                 temperature=0.3,
             )
+            _elapsed = _time.monotonic() - _t0
+
+            # Track token usage for Developer Panel throughput display
+            usage = getattr(response, "usage", None)
+            in_tok = getattr(usage, "prompt_tokens", 0) or 0
+            out_tok = getattr(usage, "completion_tokens", 0) or 0
+            if in_tok == 0:
+                # Rough estimate: ~4 chars per token for English
+                in_tok = max(1, len(system_prompt + text) // 4)
+            if out_tok == 0:
+                content = response.choices[0].message.content or ""
+                out_tok = max(1, len(content) // 4)
+            self._total_input_tokens += in_tok
+            self._total_output_tokens += out_tok
+            self._last_tok_per_sec = out_tok / max(_elapsed, 0.001)
+
             cleaned = response.choices[0].message.content
             return cleaned.strip() if cleaned else text
         except Exception as exc:
@@ -204,6 +226,11 @@ class TextProcessor:
             return False, f"API error: {_sanitize_error(exc, self._api_key)}"
         except Exception as exc:
             return False, f"Unexpected error: {_sanitize_error(exc, self._api_key)}"
+
+    @property
+    def token_stats(self) -> tuple[float, int, int]:
+        """Return ``(tok_per_sec, total_input_tokens, total_output_tokens)``."""
+        return self._last_tok_per_sec, self._total_input_tokens, self._total_output_tokens
 
 
 # ── Keyring helpers ──────────────────────────────────────────────────────────

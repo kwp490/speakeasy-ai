@@ -1,15 +1,20 @@
 """
-Settings dialog for SpeakEasy AI.
+Settings UI for SpeakEasy AI.
 
-Provides a form to edit engine, model path, microphone, toggles, etc.
-Changes are written back to the ``Settings`` dataclass on accept.
+``SettingsWidget`` is the embeddable settings form used by the Developer Panel.
+``SettingsDialog`` wraps it in a modal dialog for backward compatibility.
+
+Auto-apply toggles (safe fields) take effect immediately.
+Risky fields (model path, device, engine, sample rate) require an explicit Apply.
 """
 
 from __future__ import annotations
 
 import logging
+from dataclasses import fields as dc_fields
 from typing import Optional
 
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -18,7 +23,6 @@ from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QFileDialog,
     QFormLayout,
-    QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -54,29 +58,40 @@ COHERE_LANGUAGES = [
 ]
 
 
-class SettingsDialog(QDialog):
-    """Modal dialog for editing application settings."""
+class SettingsWidget(QWidget):
+    """Embeddable settings UI with auto-apply for safe fields and explicit Apply
+    for risky ones (model path, device, engine, sample rate)."""
 
-    def __init__(
-        self,
-        settings: Settings,
-        parent: Optional[QWidget] = None,
-    ):
+    risky_change_pending = Signal()   # emitted when Apply is needed
+    settings_applied = Signal()       # emitted after Apply succeeds
+    reload_model_requested = Signal() # emitted if model path/device changed on Apply
+
+    # Fields that require an explicit Apply (and possibly model reload)
+    RISKY_FIELDS = {"model_path", "device", "sample_rate"}
+
+    def __init__(self, settings: Settings, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.settings = settings
-        self.setWindowTitle("Settings")
-        self.setMinimumWidth(500)
+        self._snapshot = self._take_snapshot()
         self._build_ui()
         self._populate()
+        self._wire_auto_apply()
+
+    def _take_snapshot(self) -> dict:
+        return {f.name: getattr(self.settings, f.name) for f in dc_fields(self.settings.__class__)
+                if not f.name.startswith("_")}
 
     # ── UI construction ──────────────────────────────────────────────────────
 
     def _build_ui(self) -> None:
-        layout = QVBoxLayout(self)
+        from .theme import Color, Spacing, ghost_button_style, make_section
 
-        # ── Model Engine group ───────────────────────────────────────────────
-        engine_group = QGroupBox("Model Engine")
-        engine_form = QFormLayout()
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
+        layout.setSpacing(Spacing.XL)
+
+        # ── Model section ────────────────────────────────────────────────────
+        model_section, engine_form = make_section("Model", self)
 
         model_row = QHBoxLayout()
         self._model_path = QLineEdit()
@@ -105,7 +120,7 @@ class SettingsDialog(QDialog):
             " Download and install the GPU version to use CUDA."
         )
         self._device_warning.setWordWrap(True)
-        self._device_warning.setStyleSheet("color: #e74c3c; font-weight: bold;")
+        self._device_warning.setStyleSheet(f"color: {Color.DANGER}; font-weight: bold;")
         self._device_warning.setVisible(False)
         engine_form.addRow(self._device_warning)
 
@@ -136,12 +151,10 @@ class SettingsDialog(QDialog):
         )
         engine_form.addRow("Inference timeout:", self._inference_timeout)
 
-        engine_group.setLayout(engine_form)
-        layout.addWidget(engine_group)
+        layout.addWidget(model_section)
 
-        # ── Audio group ──────────────────────────────────────────────────────
-        audio_group = QGroupBox("Audio")
-        audio_form = QFormLayout()
+        # ── Audio section ────────────────────────────────────────────────────
+        audio_section, audio_form = make_section("Audio", self)
 
         self._mic_combo = QComboBox()
         self._mic_combo.addItem("System default", -1)
@@ -187,12 +200,10 @@ class SettingsDialog(QDialog):
         )
         audio_form.addRow("Sample rate (recording):", self._sample_rate)
 
-        audio_group.setLayout(audio_form)
-        layout.addWidget(audio_group)
+        layout.addWidget(audio_section)
 
-        # ── Dictation UX group ───────────────────────────────────────────────
-        ux_group = QGroupBox("Dictation UX")
-        ux_form = QFormLayout()
+        # ── UX Behavior section ──────────────────────────────────────────────
+        ux_section, ux_form = make_section("UX Behavior", self)
 
         self._auto_copy = QCheckBox("Auto-copy transcription to clipboard")
         self._auto_copy.setToolTip(
@@ -214,21 +225,6 @@ class SettingsDialog(QDialog):
             "is not the focused window (runs in the background)."
         )
         ux_form.addRow(self._hotkeys_enabled)
-
-        self._hotkey_start = QLineEdit()
-        self._hotkey_start.setToolTip(
-            "Keyboard shortcut to start and stop recording.\n"
-            "Format: modifier+key, e.g. ctrl+alt+p or ctrl+shift+r.\n"
-            "Requires global hotkeys to be enabled."
-        )
-        ux_form.addRow("Record hotkey:", self._hotkey_start)
-
-        self._hotkey_quit = QLineEdit()
-        self._hotkey_quit.setToolTip(
-            "Keyboard shortcut to close SpeakEasy from anywhere.\n"
-            "Format: modifier+key, e.g. ctrl+alt+q."
-        )
-        ux_form.addRow("Quit hotkey:", self._hotkey_quit)
 
         self._clear_logs_on_exit = QCheckBox("Clear logs on application exit")
         self._clear_logs_on_exit.setToolTip(
@@ -254,19 +250,53 @@ class SettingsDialog(QDialog):
         self._streaming_partials.setToolTip(_streaming_tip)
         ux_form.addRow(self._streaming_partials)
 
-        ux_group.setLayout(ux_form)
-        layout.addWidget(ux_group)
+        layout.addWidget(ux_section)
 
-        # ── Button box ───────────────────────────────────────────────────────
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        # ── Hotkeys section ──────────────────────────────────────────────────
+        hk_section, hk_form = make_section("Hotkeys", self)
+
+        self._hotkey_start = QLineEdit()
+        self._hotkey_start.setToolTip(
+            "Keyboard shortcut to start and stop recording.\n"
+            "Format: modifier+key, e.g. ctrl+alt+p or ctrl+shift+r.\n"
+            "Requires global hotkeys to be enabled."
         )
-        self._ok_button = buttons.button(QDialogButtonBox.StandardButton.Ok)
-        buttons.accepted.connect(self._save_and_accept)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        hk_form.addRow("Record hotkey:", self._hotkey_start)
 
-    # ── Populate / Save ──────────────────────────────────────────────────────
+        self._hotkey_quit = QLineEdit()
+        self._hotkey_quit.setToolTip(
+            "Keyboard shortcut to close SpeakEasy from anywhere.\n"
+            "Format: modifier+key, e.g. ctrl+alt+q."
+        )
+        hk_form.addRow("Quit hotkey:", self._hotkey_quit)
+
+        self._hotkey_dev_panel = QLineEdit()
+        self._hotkey_dev_panel.setToolTip(
+            "Keyboard shortcut to toggle the Developer Panel.\n"
+            "Format: modifier+key, e.g. ctrl+alt+d."
+        )
+        hk_form.addRow("Dev Panel hotkey:", self._hotkey_dev_panel)
+
+        layout.addWidget(hk_section)
+
+        # ── Action row ───────────────────────────────────────────────────────
+        action_row = QHBoxLayout()
+        action_row.setContentsMargins(0, Spacing.LG, 0, 0)
+        self._btn_apply = QPushButton("Apply")
+        self._btn_apply.setEnabled(False)
+        self._btn_apply.setToolTip("Apply risky changes (model path, device, sample rate)")
+        self._btn_apply.clicked.connect(self._on_apply)
+        self._btn_restore = QPushButton("Restore Defaults")
+        self._btn_restore.setStyleSheet(ghost_button_style())
+        self._btn_restore.clicked.connect(self._on_restore_defaults)
+        action_row.addWidget(self._btn_apply)
+        action_row.addWidget(self._btn_restore)
+        action_row.addStretch()
+        layout.addLayout(action_row)
+
+        layout.addStretch()
+
+    # ── Populate ─────────────────────────────────────────────────────────────
 
     def _populate(self) -> None:
         s = self.settings
@@ -287,54 +317,85 @@ class SettingsDialog(QDialog):
         self._hotkeys_enabled.setChecked(s.hotkeys_enabled)
         self._hotkey_start.setText(s.hotkey_start)
         self._hotkey_quit.setText(s.hotkey_quit)
+        self._hotkey_dev_panel.setText(s.hotkey_dev_panel)
         self._clear_logs_on_exit.setChecked(s.clear_logs_on_exit)
         self._streaming_partials.setChecked(s.streaming_partials_enabled)
 
-        # Select current mic device
         idx = self._mic_combo.findData(s.mic_device_index)
         if idx >= 0:
             self._mic_combo.setCurrentIndex(idx)
 
         self._on_device_changed(self._device_combo.currentText())
 
-    def _save_and_accept(self) -> None:
-        s = self.settings
-        s.model_path = self._model_path.text().strip()
-        s.device = self._device_combo.currentText()
-        s.language = self._language_combo.currentData() or "en"
-        s.punctuation = self._punctuation.isChecked()
-        s.inference_timeout = self._inference_timeout.value()
-        s.silence_threshold = self._silence_threshold.value()
-        s.silence_margin_ms = self._silence_margin.value()
-        s.sample_rate = self._sample_rate.value()
-        s.auto_copy = self._auto_copy.isChecked()
-        s.auto_paste = self._auto_paste.isChecked()
-        s.hotkeys_enabled = self._hotkeys_enabled.isChecked()
-        s.hotkey_start = self._hotkey_start.text().strip() or "ctrl+alt+p"
-        s.hotkey_quit = self._hotkey_quit.text().strip() or "ctrl+alt+q"
-        s.clear_logs_on_exit = self._clear_logs_on_exit.isChecked()
-        s.streaming_partials_enabled = self._streaming_partials.isChecked()
-        s.mic_device_index = self._mic_combo.currentData()
+    # ── Auto-apply wiring ────────────────────────────────────────────────────
 
-        try:
-            s.save()
-            log.info("Settings saved")
-        except Exception as exc:
-            log.error("Failed to save settings: %s", exc, exc_info=True)
-            QMessageBox.warning(
-                self,
-                "Settings Not Saved",
-                "Your settings could not be saved to disk:\n\n"
-                f"{exc}\n\n"
-                "Changes will remain active for this session only.\n"
-                "To fix permanently, re-run the installer to repair file permissions.",
-            )
-        self.accept()
+    def _wire_auto_apply(self) -> None:
+        # Safe fields — auto-apply on change
+        self._language_combo.currentIndexChanged.connect(
+            lambda: self._auto_apply("language", self._language_combo.currentData() or "en"))
+        self._punctuation.toggled.connect(lambda v: self._auto_apply("punctuation", v))
+        self._inference_timeout.valueChanged.connect(lambda v: self._auto_apply("inference_timeout", v))
+        self._auto_copy.toggled.connect(lambda v: self._auto_apply("auto_copy", v))
+        self._auto_paste.toggled.connect(lambda v: self._auto_apply("auto_paste", v))
+        self._hotkeys_enabled.toggled.connect(lambda v: self._auto_apply("hotkeys_enabled", v))
+        self._hotkey_start.editingFinished.connect(
+            lambda: self._auto_apply("hotkey_start", self._hotkey_start.text().strip() or "ctrl+alt+p"))
+        self._hotkey_quit.editingFinished.connect(
+            lambda: self._auto_apply("hotkey_quit", self._hotkey_quit.text().strip() or "ctrl+alt+q"))
+        self._hotkey_dev_panel.editingFinished.connect(
+            lambda: self._auto_apply("hotkey_dev_panel", self._hotkey_dev_panel.text().strip() or "ctrl+alt+d"))
+        self._clear_logs_on_exit.toggled.connect(lambda v: self._auto_apply("clear_logs_on_exit", v))
+        self._streaming_partials.toggled.connect(lambda v: self._auto_apply("streaming_partials_enabled", v))
+        self._mic_combo.currentIndexChanged.connect(
+            lambda: self._auto_apply("mic_device_index", self._mic_combo.currentData()))
+        self._silence_threshold.valueChanged.connect(lambda v: self._auto_apply("silence_threshold", v))
+        self._silence_margin.valueChanged.connect(lambda v: self._auto_apply("silence_margin_ms", v))
+
+        # Risky fields — only enable Apply button
+        self._model_path.textChanged.connect(self._on_risky_changed)
+        self._device_combo.currentTextChanged.connect(self._on_risky_changed)
+        self._sample_rate.valueChanged.connect(self._on_risky_changed)
+
+    def _auto_apply(self, field_name: str, value) -> None:
+        setattr(self.settings, field_name, value)
+        self.settings.save()
+        self.settings_applied.emit()
+
+    def _on_risky_changed(self) -> None:
+        self._btn_apply.setEnabled(self._has_risky_diff())
+        self.risky_change_pending.emit()
+
+    def _has_risky_diff(self) -> bool:
+        editor_vals = {
+            "model_path": self._model_path.text().strip(),
+            "device": self._device_combo.currentText(),
+            "sample_rate": self._sample_rate.value(),
+        }
+        return any(editor_vals[f] != self._snapshot.get(f) for f in self.RISKY_FIELDS)
+
+    def _on_apply(self) -> None:
+        old_model_path = self._snapshot.get("model_path")
+        old_device = self._snapshot.get("device")
+
+        self.settings.model_path = self._model_path.text().strip()
+        self.settings.device = self._device_combo.currentText()
+        self.settings.sample_rate = self._sample_rate.value()
+        self.settings.save()
+
+        self._snapshot = self._take_snapshot()
+        self._btn_apply.setEnabled(False)
+        self.settings_applied.emit()
+
+        if (
+            self.settings.model_path != old_model_path
+            or self.settings.device != old_device
+        ):
+            self.reload_model_requested.emit()
 
     def _on_device_changed(self, device: str) -> None:
         cuda_blocked = VARIANT == "cpu" and device == "cuda"
         self._device_warning.setVisible(cuda_blocked)
-        self._ok_button.setEnabled(not cuda_blocked)
+        self._btn_apply.setEnabled(not cuda_blocked and self._has_risky_diff())
 
     # ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -346,3 +407,41 @@ class SettingsDialog(QDialog):
         )
         if path:
             self._model_path.setText(path)
+
+    def _on_restore_defaults(self) -> None:
+        """Reset all safe fields to their default values."""
+        defaults = Settings()
+        self._language_combo.setCurrentIndex(
+            max(0, self._language_combo.findData(defaults.language))
+        )
+        self._punctuation.setChecked(defaults.punctuation)
+        self._inference_timeout.setValue(defaults.inference_timeout)
+        self._silence_threshold.setValue(defaults.silence_threshold)
+        self._silence_margin.setValue(defaults.silence_margin_ms)
+        self._auto_copy.setChecked(defaults.auto_copy)
+        self._auto_paste.setChecked(defaults.auto_paste)
+        self._hotkeys_enabled.setChecked(defaults.hotkeys_enabled)
+        self._hotkey_start.setText(defaults.hotkey_start)
+        self._hotkey_quit.setText(defaults.hotkey_quit)
+        self._hotkey_dev_panel.setText(defaults.hotkey_dev_panel)
+        self._clear_logs_on_exit.setChecked(defaults.clear_logs_on_exit)
+        self._streaming_partials.setChecked(defaults.streaming_partials_enabled)
+
+
+class SettingsDialog(QDialog):
+    """Backwards-compat shim — wraps SettingsWidget in a modal dialog so any
+    legacy callers keep working. New code should embed SettingsWidget directly."""
+
+    def __init__(self, settings: Settings, parent: Optional[QWidget] = None):
+        super().__init__(parent)
+        self.setWindowTitle("Settings")
+        self.setMinimumWidth(500)
+        layout = QVBoxLayout(self)
+        self._widget = SettingsWidget(settings, self)
+        layout.addWidget(self._widget)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)

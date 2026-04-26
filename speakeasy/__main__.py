@@ -264,10 +264,12 @@ def main() -> int:
     from PySide6.QtGui import QIcon
     from speakeasy.config import Settings
     from speakeasy.main_window import MainWindow
+    from speakeasy.theme import app_stylesheet
 
     app = QApplication(sys.argv)
     app.setApplicationName("SpeakEasy AI")
     app.setOrganizationName("SpeakEasy AI")
+    app.setStyleSheet(app_stylesheet())
 
     # Set application icon (taskbar + window title bar)
     _icon_path = os.path.join(
