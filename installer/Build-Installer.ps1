@@ -597,10 +597,16 @@ if ($Mode -ne 'Install') {
 # In Release mode, pytest runs before the fresh PyInstaller build. Remove any
 # stale dist/ tree first so frozen-build dist assertions do not read an old bundle.
 if ($Mode -eq 'Release') {
-    $staleDistDir = if ($Variant -eq 'CPU') { 'dist\speakeasy-cpu' } else { 'dist\speakeasy' }
-    if (Test-Path $staleDistDir) {
-        Remove-Item $staleDistDir -Recurse -Force
-        Write-Ok "Removed stale $staleDistDir before pre-build tests"
+    $staleDirs = switch ($Variant) {
+        'GPU'  { @('dist\speakeasy') }
+        'CPU'  { @('dist\speakeasy-cpu') }
+        'Both' { @('dist\speakeasy', 'dist\speakeasy-cpu') }
+    }
+    foreach ($staleDistDir in $staleDirs) {
+        if (Test-Path $staleDistDir) {
+            Remove-Item $staleDistDir -Recurse -Force
+            Write-Ok "Removed stale $staleDistDir before pre-build tests"
+        }
     }
 }
 
@@ -871,19 +877,39 @@ if ($Mode -eq 'Release') {
 
     Write-Ok "Running as Administrator"
 
-    # -- Build installer -------------------------------------------------------
-    Write-Step "Building installer..."
+    # -- Build installer(s) ----------------------------------------------------
+    Write-Step "Building installer(s)..."
 
-    $buildArgs = @{
-        VariantTag    = if ($Variant -eq 'CPU') { 'cpu' } else { 'gpu' }
-        SpecFile      = if ($Variant -eq 'CPU') { 'speakeasy-cpu.spec' } else { 'speakeasy.spec' }
-        IssFile       = if ($Variant -eq 'CPU') { 'installer\speakeasy-cpu-setup.iss' } else { 'installer\speakeasy-setup.iss' }
-        DistDir       = if ($Variant -eq 'CPU') { 'dist\speakeasy-cpu' } else { 'dist\speakeasy' }
-        HashFilePath  = if ($Variant -eq 'CPU') { $CpuHashFile } else { $HashFile }
-        InstallerGlob = if ($Variant -eq 'CPU') { 'SpeakEasy-AI-CPU-Setup-*.exe' } else { 'SpeakEasy-AI-Setup-*.exe' }
+    $variantsToBuild = switch ($Variant) {
+        'GPU'  { @('gpu') }
+        'CPU'  { @('cpu') }
+        'Both' { @('gpu', 'cpu') }
     }
-    Build-Variant @buildArgs
-    Write-Ok "Installer built successfully"
+
+    foreach ($v in $variantsToBuild) {
+        if ($v -eq 'gpu') {
+            Build-Variant `
+                -VariantTag  'gpu' `
+                -SpecFile    'speakeasy.spec' `
+                -IssFile     'installer\speakeasy-setup.iss' `
+                -DistDir     'dist\speakeasy' `
+                -HashFilePath $HashFile `
+                -InstallerGlob 'SpeakEasy-AI-Setup-*.exe'
+        } else {
+            Build-Variant `
+                -VariantTag  'cpu' `
+                -SpecFile    'speakeasy-cpu.spec' `
+                -IssFile     'installer\speakeasy-cpu-setup.iss' `
+                -DistDir     'dist\speakeasy-cpu' `
+                -HashFilePath $CpuHashFile `
+                -InstallerGlob 'SpeakEasy-AI-CPU-Setup-*.exe'
+        }
+    }
+    Write-Ok "Installer(s) built successfully"
+
+    # For install/validate/launch steps, use GPU as the primary variant when Both
+    # (both variants share the same Inno Setup AppId -- only one can be installed).
+    $installVariant = if ($Variant -eq 'CPU') { 'cpu' } else { 'gpu' }
 
     # Validate the freshly built frozen bundle now that dist/ reflects the
     # current spec and source tree.
@@ -965,7 +991,7 @@ if ($Mode -eq 'Release') {
     # -- Silent install --------------------------------------------------------
     Write-Step "Installing new build..."
 
-    $setupPattern = if ($Variant -eq 'CPU') { 'SpeakEasy-AI-CPU-Setup-*.exe' } else { 'SpeakEasy-AI-Setup-*.exe' }
+    $setupPattern = if ($installVariant -eq 'cpu') { 'SpeakEasy-AI-CPU-Setup-*.exe' } else { 'SpeakEasy-AI-Setup-*.exe' }
     $setupExe = Get-ChildItem "installer\Output\$setupPattern" -ErrorAction SilentlyContinue |
         Sort-Object LastWriteTime -Descending |
         Select-Object -First 1
@@ -994,7 +1020,7 @@ if ($Mode -eq 'Release') {
     Write-Ok "SpeakEasy AI installed successfully"
 
     # -- Verify installed bundle matches freshly-built dist --------------------
-    $distSubdir = if ($Variant -eq 'CPU') { 'dist\speakeasy-cpu' } else { 'dist\speakeasy' }
+    $distSubdir = if ($installVariant -eq 'cpu') { 'dist\speakeasy-cpu' } else { 'dist\speakeasy' }
     $distTorchLib = Join-Path $RepoRoot "$distSubdir\_internal\torch\lib"
     $installedTorchLib = 'C:\Program Files\SpeakEasy AI\_internal\torch\lib'
     Write-Step "Verifying installed torch DLL bundle..."
