@@ -5,6 +5,24 @@ All notable changes to SpeakEasy AI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - ASR Throughput Instrumentation & Sparkline Enhancements
+
+### Added
+- **ASR throughput section** in Developer Panel Realtime tab: displays realtime factor, decoder token rate, total tokens, and total audio processed from the Cohere engine
+- **ASR sparkline**: plots realtime factor over time with a 1.0x reference line; uses sticky-max scaling to prevent visual creep during CUDA warm-up
+- **Engine instrumentation** (`CohereTranscribeEngine`): tracks per-chunk throughput counters (`token_stats` property) including inference sequence number for sparkline deduplication
+- **LLM call sequence tracking** (`TextProcessor`): `token_stats` now returns a monotonic `call_seq` counter for consistent sparkline updates
+- **Parallel test execution**: added `pytest-xdist` dev dependency; build script now runs `pytest -n auto`
+- **Session-scoped QApplication fixture** in `conftest.py` for xdist worker isolation
+
+### Changed
+- **TokenSparkline** widget overhauled: sticky-max Y-axis scaling, configurable value units/format, optional horizontal reference line, current/max text overlay, border frame, and "awaiting samples" placeholder state
+- **RealtimeDataWidget**: replaced audio input-level meter with dedicated ASR Throughput and LLM Throughput sections; both sparklines use spike-and-zero semantics with sequence-based deduplication
+- **Main window resource monitor**: now forwards both ASR and LLM token stats to the Developer Panel on each poll tick; pushes engine state to panel on first open
+- **Inno Setup**: added `LZMANumBlockThreads=8` for faster fast-compression dev builds
+
+---
+
 ## [0.6.0] - Developer Panel & UI Overhaul
 
 ### Added

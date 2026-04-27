@@ -46,27 +46,97 @@ TAB_PRO = "pro"
 
 
 class TokenSparkline(QWidget):
-    """Tiny custom-painted line chart for token throughput."""
+    """Tiny custom-painted line chart for throughput metrics.
 
-    def __init__(self, parent: Optional[QWidget] = None) -> None:
+    Designed to show "burst" activity: the caller appends a non-zero sample
+    when work happens and a zero sample when idle, producing a spike that
+    decays back to the baseline.
+
+    Y-axis uses a *sticky* maximum so the scale only grows within the widget
+    lifetime; this prevents the visual creep that auto-rebaseline produces
+    when each new sample marginally exceeds prior ones (e.g. CUDA warm-up).
+
+    Optionally draws a horizontal reference line (e.g. 1.0x for "realtime")
+    and overlays the current sample + scale ceiling as text.
+    """
+
+    def __init__(
+        self,
+        parent: Optional[QWidget] = None,
+        *,
+        value_unit: str = "",
+        value_fmt: str = "{:.0f}",
+        min_scale: float = 1.0,
+        reference_line: Optional[float] = None,
+        reference_label: str = "",
+    ) -> None:
         super().__init__(parent)
         self._data: list[float] = []
-        self.setMinimumHeight(60)
+        self._value_unit = value_unit
+        self._value_fmt = value_fmt
+        self._min_scale = float(min_scale)
+        self._sticky_max = float(min_scale)
+        self._reference_line = reference_line
+        self._reference_label = reference_label
+        self.setMinimumHeight(70)
         self.setMinimumWidth(200)
 
     def set_data(self, data: list[float]) -> None:
         self._data = list(data)
+        if self._data:
+            cur_max = max(self._data)
+            if cur_max > self._sticky_max:
+                # Headroom above the new peak so the line doesn't sit on
+                # the top edge of the chart.
+                self._sticky_max = cur_max * 1.15
+        self.update()
+
+    def reset(self) -> None:
+        """Clear samples and reset the sticky max back to the floor."""
+        self._data = []
+        self._sticky_max = self._min_scale
         self.update()
 
     def paintEvent(self, event) -> None:
-        if not self._data:
-            return
-        from .theme import Color
+        from .theme import Color, Font
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        # Always paint background + border so the chart frame is visible
+        # even before any data arrives.
         p.fillRect(self.rect(), QColor(Color.INPUT_BG))
-        max_v = max(self._data) or 1.0
+        border_pen = QPen(QColor(Color.BORDER))
+        border_pen.setWidth(1)
+        p.setPen(border_pen)
+        p.drawRect(self.rect().adjusted(0, 0, -1, -1))
+
+        if not self._data:
+            p.setPen(QColor(Color.TEXT_MUTED))
+            p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "awaiting samples…")
+            p.end()
+            return
+
         w, h = self.width(), self.height()
+        pad_top, pad_bot = 4, 4
+        plot_h = max(1, h - pad_top - pad_bot)
+        max_v = self._sticky_max if self._sticky_max > 0 else self._min_scale
+
+        def y_for(v: float) -> float:
+            v = max(0.0, min(v, max_v))
+            return h - pad_bot - (v / max_v) * plot_h
+
+        # Reference line (e.g. 1.0x realtime)
+        if self._reference_line is not None and self._reference_line <= max_v:
+            ref_y = y_for(self._reference_line)
+            ref_pen = QPen(QColor(Color.TEXT_MUTED))
+            ref_pen.setWidth(1)
+            ref_pen.setStyle(Qt.PenStyle.DashLine)
+            p.setPen(ref_pen)
+            p.drawLine(0, int(ref_y), w, int(ref_y))
+            if self._reference_label:
+                p.setFont(QFont(Font.FAMILY, max(7, Font.LABEL[0] - 1)))
+                p.drawText(4, int(ref_y) - 2, self._reference_label)
+
+        # Data line
         step = w / max(len(self._data) - 1, 1)
         pen = QPen(QColor(Color.PRIMARY))
         pen.setWidth(2)
@@ -74,10 +144,25 @@ class TokenSparkline(QWidget):
         prev = None
         for i, v in enumerate(self._data):
             x = i * step
-            y = h - (v / max_v) * (h - 4) - 2
+            y = y_for(v)
             if prev is not None:
                 p.drawLine(int(prev[0]), int(prev[1]), int(x), int(y))
             prev = (x, y)
+
+        # Top-right overlay: current value and scale ceiling
+        p.setFont(QFont(Font.FAMILY, max(7, Font.LABEL[0] - 1)))
+        p.setPen(QColor(Color.TEXT_MUTED))
+        cur = self._data[-1]
+        unit = self._value_unit
+        cur_text = f"now {self._value_fmt.format(cur)}{unit}"
+        max_text = f"max {self._value_fmt.format(max_v)}{unit}"
+        fm = p.fontMetrics()
+        p.drawText(w - fm.horizontalAdvance(cur_text) - 4, pad_top + fm.ascent(), cur_text)
+        p.drawText(
+            w - fm.horizontalAdvance(max_text) - 4,
+            pad_top + fm.ascent() + fm.height(),
+            max_text,
+        )
         p.end()
 
 
@@ -87,16 +172,21 @@ class TokenSparkline(QWidget):
 
 
 class RealtimeDataWidget(QWidget):
-    """Live engine status, RAM/VRAM/GPU metrics, audio meter, LLM token throughput."""
+    """Live engine status, RAM/VRAM/GPU metrics, audio meter, ASR + LLM throughput."""
 
     reload_model_requested = Signal()
     validate_requested = Signal()
 
-    TOKEN_HISTORY_LEN = 60  # last 60 samples
+    TOKEN_HISTORY_LEN = 60  # last 60 samples for sparklines
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
-        self._tok_history: list[float] = []
+        self._asr_tok_history: list[float] = []
+        self._llm_tok_history: list[float] = []
+        # Last seen inference/call sequence numbers — used to dedupe
+        # sparkline samples between resource-monitor polls.
+        self._last_asr_seq: int = 0
+        self._last_llm_seq: int = 0
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -154,19 +244,47 @@ class RealtimeDataWidget(QWidget):
 
         layout.addWidget(engine_sec)
 
-        # ── Audio section ────────────────────────────────────────────────────
-        audio_sec, audio_form = make_section("Audio", self)
-        self._pb_audio = QProgressBar()
-        self._pb_audio.setMinimum(0)
-        self._pb_audio.setMaximum(100)
-        self._pb_audio.setValue(0)
-        self._pb_audio.setFixedHeight(Spacing.MD)
-        self._pb_audio.setTextVisible(False)
-        audio_form.addRow("Input level", self._pb_audio)
-        layout.addWidget(audio_sec)
+        # ── ASR Throughput section (Cohere) ─────────────────────────────────
+        asr_sec, asr_form = make_section("ASR Throughput (Cohere)", self)
 
-        # ── LLM Throughput section ───────────────────────────────────────────
-        tok_sec, tok_form = make_section("LLM Throughput", self)
+        self._lbl_asr_rtf = QLabel("0.0x realtime")
+        self._lbl_asr_rtf.setFont(QFont(Font.FAMILY, Font.BODY[0]))
+        asr_form.addRow("Realtime factor", self._lbl_asr_rtf)
+
+        self._lbl_asr_tok_rate = QLabel("0 tok/s")
+        self._lbl_asr_tok_rate.setFont(QFont(Font.FAMILY, Font.LABEL[0]))
+        asr_form.addRow("Decoder rate", self._lbl_asr_tok_rate)
+
+        self._lbl_asr_total_tok = QLabel("0 tokens")
+        self._lbl_asr_total_tok.setFont(QFont(Font.FAMILY, Font.LABEL[0]))
+        asr_form.addRow("Total tokens", self._lbl_asr_total_tok)
+
+        self._lbl_asr_total_audio = QLabel("0.0s audio")
+        self._lbl_asr_total_audio.setFont(QFont(Font.FAMILY, Font.LABEL[0]))
+        asr_form.addRow("Total audio", self._lbl_asr_total_audio)
+
+        self._lbl_asr_sparkline_title = QLabel(
+            "Realtime factor over time (audio sec / wall sec)"
+        )
+        self._lbl_asr_sparkline_title.setFont(QFont(Font.FAMILY, Font.LABEL[0]))
+        self._lbl_asr_sparkline_title.setStyleSheet(f"color: {Color.TEXT_MUTED};")
+        asr_sec.layout().addWidget(self._lbl_asr_sparkline_title)
+        # Plot RTF: more meaningful than tok/s for ASR.  Reference line at
+        # 1.0x marks "realtime"; values above are faster than realtime.
+        self._asr_sparkline = TokenSparkline(
+            self,
+            value_unit="x",
+            value_fmt="{:.1f}",
+            min_scale=2.0,
+            reference_line=1.0,
+            reference_label="1.0x realtime",
+        )
+        asr_sec.layout().addWidget(self._asr_sparkline)
+
+        layout.addWidget(asr_sec)
+
+        # ── LLM Throughput section (Professional Mode) ───────────────────
+        tok_sec, tok_form = make_section("LLM Throughput (Pro Mode)", self)
 
         self._lbl_tok_rate = QLabel("0 tok/s")
         self._lbl_tok_rate.setFont(QFont(Font.FAMILY, Font.BODY[0]))
@@ -180,11 +298,16 @@ class RealtimeDataWidget(QWidget):
         self._lbl_tok_out.setFont(QFont(Font.FAMILY, Font.LABEL[0]))
         tok_form.addRow("Tokens out", self._lbl_tok_out)
 
-        self._sparkline = TokenSparkline(self)
-        self._sparkline_empty_label = QLabel("No LLM activity yet")
-        self._sparkline_empty_label.setStyleSheet(f"color: {Color.TEXT_MUTED};")
-        tok_sec.layout().addWidget(self._sparkline_empty_label)
-        self._sparkline.hide()
+        self._lbl_llm_sparkline_title = QLabel("Token rate over time (tok/s)")
+        self._lbl_llm_sparkline_title.setFont(QFont(Font.FAMILY, Font.LABEL[0]))
+        self._lbl_llm_sparkline_title.setStyleSheet(f"color: {Color.TEXT_MUTED};")
+        tok_sec.layout().addWidget(self._lbl_llm_sparkline_title)
+        self._sparkline = TokenSparkline(
+            self,
+            value_unit=" tok/s",
+            value_fmt="{:.0f}",
+            min_scale=50.0,
+        )
         tok_sec.layout().addWidget(self._sparkline)
 
         layout.addWidget(tok_sec)
@@ -255,20 +378,78 @@ class RealtimeDataWidget(QWidget):
     def update_gpu(self, label: str) -> None:
         self._lbl_gpu_info.setText(f"GPU: {label}")
 
-    def update_audio_level(self, rms: float) -> None:
-        self._pb_audio.setValue(int(min(1.0, max(0.0, rms)) * 100))
+    def update_asr_tokens(self, tok_per_sec: float, total_tokens: int,
+                           total_audio_sec: float, realtime_factor: float,
+                           seq: int = 0) -> None:
+        """Update ASR (Cohere) throughput section.
 
-    def update_tokens(self, tok_per_sec: float, tokens_in: int, tokens_out: int) -> None:
+        The sparkline plots **realtime factor** (audio sec / wall sec) over
+        time — the standard performance metric for ASR.  ``seq`` is a
+        monotonically increasing inference counter from the engine: each
+        poll appends a sample to the sparkline, the value being the new
+        ``realtime_factor`` if a new inference completed since the last
+        poll, otherwise ``0`` so the line falls back to the baseline
+        between transcription bursts.
+
+        When ``seq == 0`` (legacy callers / direct unit-test use) the
+        widget falls back to the older "append non-zero only" behavior so
+        existing tests keep working.
+        """
+        self._lbl_asr_tok_rate.setText(f"{tok_per_sec:.0f} tok/s")
+        self._lbl_asr_rtf.setText(f"{realtime_factor:.1f}x realtime")
+        self._lbl_asr_total_tok.setText(f"{total_tokens:,} tokens")
+        self._lbl_asr_total_audio.setText(f"{total_audio_sec:.1f}s audio")
+        if seq > 0:
+            # Skip the very first poll if no inference has happened yet —
+            # otherwise we'd seed the buffer with zeros while idle.
+            if seq != self._last_asr_seq:
+                sample = realtime_factor
+                self._last_asr_seq = seq
+            elif self._asr_tok_history:
+                sample = 0.0
+            else:
+                return
+            self._asr_tok_history.append(sample)
+            if len(self._asr_tok_history) > self.TOKEN_HISTORY_LEN:
+                self._asr_tok_history.pop(0)
+            self._asr_sparkline.set_data(self._asr_tok_history)
+        elif tok_per_sec > 0:
+            # Legacy / test path: keep historical "append non-zero rate"
+            # behavior so existing unit tests (which call this directly
+            # without a seq argument) keep passing.
+            self._asr_tok_history.append(tok_per_sec)
+            if len(self._asr_tok_history) > self.TOKEN_HISTORY_LEN:
+                self._asr_tok_history.pop(0)
+            self._asr_sparkline.set_data(self._asr_tok_history)
+
+    def update_tokens(self, tok_per_sec: float, tokens_in: int, tokens_out: int,
+                      seq: int = 0) -> None:
+        """Update LLM (Professional Mode) throughput section.
+
+        See :meth:`update_asr_tokens` for the seq / spike-and-zero semantics.
+        For LLMs the plotted metric is the conventional ``tok/s``.
+        """
         self._lbl_tok_rate.setText(f"{tok_per_sec:.0f} tok/s")
         self._lbl_tok_in.setText(f"{tokens_in:,} in")
         self._lbl_tok_out.setText(f"{tokens_out:,} out")
-        self._tok_history.append(tok_per_sec)
-        if len(self._tok_history) > self.TOKEN_HISTORY_LEN:
-            self._tok_history.pop(0)
-        self._sparkline.set_data(self._tok_history)
-        if not self._sparkline.isVisible():
-            self._sparkline_empty_label.hide()
-            self._sparkline.show()
+        if seq > 0:
+            if seq != self._last_llm_seq:
+                sample = tok_per_sec
+                self._last_llm_seq = seq
+            elif self._llm_tok_history:
+                sample = 0.0
+            else:
+                return
+            self._llm_tok_history.append(sample)
+            if len(self._llm_tok_history) > self.TOKEN_HISTORY_LEN:
+                self._llm_tok_history.pop(0)
+            self._sparkline.set_data(self._llm_tok_history)
+        elif tok_per_sec > 0:
+            # Legacy / test path
+            self._llm_tok_history.append(tok_per_sec)
+            if len(self._llm_tok_history) > self.TOKEN_HISTORY_LEN:
+                self._llm_tok_history.pop(0)
+            self._sparkline.set_data(self._llm_tok_history)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

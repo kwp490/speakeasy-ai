@@ -27,6 +27,16 @@ class CohereTranscribeEngine(SpeechEngine):
     def __init__(self) -> None:
         super().__init__()
         self._processor = None
+        # Throughput counters for Developer Panel
+        self._total_tokens: int = 0
+        self._total_audio_sec: float = 0.0
+        self._last_tok_per_sec: float = 0.0
+        self._last_realtime_factor: float = 0.0
+        self._last_inference_time: float = 0.0  # monotonic timestamp
+        # Monotonically increasing counter — incremented after every chunk
+        # transcription so the Developer Panel sparkline can dedupe samples
+        # without depending on a decay window.
+        self._inference_seq: int = 0
 
     # ── Abstract interface ───────────────────────────────────────────────
 
@@ -113,8 +123,11 @@ class CohereTranscribeEngine(SpeechEngine):
                           timeout: float = 30.0,
                           partial_callback=None) -> str:
         from .audio_utils import chunk_audio, stitch_transcripts
+        import time as _time
 
         duration_sec = len(audio_16k) / 16000
+        self._total_audio_sec += duration_sec
+        _impl_t0 = _time.monotonic()
 
         # Read model-level limits from config (set during load).
         max_clip_s = self._max_clip_seconds
@@ -130,9 +143,13 @@ class CohereTranscribeEngine(SpeechEngine):
                 "timeout=%.0fs",
                 duration_sec, max_tokens, timeout,
             )
-            return self._transcribe_chunk(
+            result = self._transcribe_chunk(
                 audio_16k, language, punctuation, timeout, max_tokens,
             )
+            _wall = _time.monotonic() - _impl_t0
+            if _wall > 0:
+                self._last_realtime_factor = duration_sec / _wall
+            return result
 
         # Long audio: chunk, transcribe each, stitch.
         chunks = chunk_audio(audio_16k, sr=16000,
@@ -169,6 +186,9 @@ class CohereTranscribeEngine(SpeechEngine):
 
         result = stitch_transcripts(texts)
         log.info("Stitched %d chunks → %d chars", len(texts), len(result))
+        _wall = _time.monotonic() - _impl_t0
+        if _wall > 0:
+            self._last_realtime_factor = duration_sec / _wall
         return result
 
     # ── Helpers ──────────────────────────────────────────────────────────
@@ -186,6 +206,23 @@ class CohereTranscribeEngine(SpeechEngine):
         """
         budget = max(128, int(clip_duration_sec * 20))
         return min(budget, self._decoder_max_seq)
+
+    @property
+    def token_stats(self) -> tuple[float, int, float, float, int]:
+        """Return ``(tok_per_sec, total_tokens, total_audio_sec, realtime_factor, inference_seq)``.
+
+        ``tok_per_sec`` and ``realtime_factor`` are the raw values from the
+        last completed chunk transcription (no decay).  ``inference_seq``
+        increments by one per completed chunk so consumers (e.g. the
+        Developer Panel sparkline) can dedupe samples between polls.
+        """
+        return (
+            self._last_tok_per_sec,
+            self._total_tokens,
+            self._total_audio_sec,
+            self._last_realtime_factor,
+            self._inference_seq,
+        )
 
     def _transcribe_chunk(self, audio_16k: np.ndarray, language: str,
                            punctuation: bool, timeout: float,
@@ -226,12 +263,25 @@ class CohereTranscribeEngine(SpeechEngine):
 
         stopping = StoppingCriteriaList([MaxTimeCriteria(max_time=timeout)])
 
+        import time as _time
+        _t0 = _time.monotonic()
+
         with torch.no_grad():
             output_ids = self._model.generate(
                 **inputs,
                 max_new_tokens=max_new_tokens,
                 stopping_criteria=stopping,
             )
+
+        # Track throughput for Developer Panel
+        import time as _time
+        _elapsed = _time.monotonic() - _t0
+        gen_tokens = output_ids.shape[-1]
+        self._total_tokens += gen_tokens
+        if _elapsed > 0:
+            self._last_tok_per_sec = gen_tokens / _elapsed
+        self._last_inference_time = _time.monotonic()
+        self._inference_seq += 1
 
         text = self._processor.decode(output_ids, skip_special_tokens=True)
         if isinstance(text, (list, tuple)):

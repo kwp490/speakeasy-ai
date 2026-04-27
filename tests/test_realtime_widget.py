@@ -69,20 +69,6 @@ class TestGPULabel:
         assert "NVIDIA RTX 4090" in realtime_widget._lbl_gpu_info.text()
 
 
-class TestAudioMeter:
-    def test_audio_meter_updates_with_rms(self, realtime_widget):
-        realtime_widget.update_audio_level(0.5)
-        assert realtime_widget._pb_audio.value() == 50
-
-    def test_audio_meter_clamps_above_1(self, realtime_widget):
-        realtime_widget.update_audio_level(1.5)
-        assert realtime_widget._pb_audio.value() == 100
-
-    def test_audio_meter_clamps_below_0(self, realtime_widget):
-        realtime_widget.update_audio_level(-0.1)
-        assert realtime_widget._pb_audio.value() == 0
-
-
 class TestTokenLabels:
     def test_token_labels_format_correctly(self, realtime_widget):
         realtime_widget.update_tokens(142.0, 1243, 340)
@@ -96,13 +82,13 @@ class TestTokenHistory:
     def test_token_history_appends_and_caps_at_60(self, realtime_widget):
         for i in range(80):
             realtime_widget.update_tokens(float(i), i, i)
-        assert len(realtime_widget._tok_history) == 60
+        assert len(realtime_widget._llm_tok_history) == 60
 
     def test_token_history_drops_oldest_first(self, realtime_widget):
         for i in range(70):
             realtime_widget.update_tokens(float(i), i, i)
         # 70 items added, capped to last 60 → first stored = 10
-        assert realtime_widget._tok_history[0] == 10.0
+        assert realtime_widget._llm_tok_history[0] == 10.0
 
 
 class TestRealtimeButtons:

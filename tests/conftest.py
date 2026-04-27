@@ -17,6 +17,24 @@ import pytest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 
+# ── QApplication for xdist workers ────────────────────────────────────────────
+# pytest-qt's qapp fixture is session-scoped but only activates when a test
+# explicitly requests it (or qtbot).  Fixtures that construct widgets directly
+# (e.g. LogsWidget()) need a QApplication to already exist.  Creating one
+# eagerly in every xdist worker prevents sporadic crashes.
+
+@pytest.fixture(scope="session", autouse=True)
+def _ensure_qapp():
+    """Guarantee a QApplication exists for the entire worker session."""
+    try:
+        from PySide6.QtWidgets import QApplication
+    except ImportError:
+        yield
+        return
+    app = QApplication.instance() or QApplication([])
+    yield app
+
+
 # ── Settings isolation ────────────────────────────────────────────────────────
 
 @pytest.fixture

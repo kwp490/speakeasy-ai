@@ -17,7 +17,7 @@
 ; ─────────────────────────────────────────────────────────────────────────────
 
 #define MyAppName "SpeakEasy AI"
-#define MyAppVersion "0.6.0"
+#define MyAppVersion "0.6.1"
 #define MyAppPublisher "kwp490"
 #define MyAppURL "https://github.com/kwp490/SpeakEasyAI"
 #define MyAppExeName "speakeasy.exe"
@@ -39,6 +39,7 @@ OutputBaseFilename=SpeakEasy-AI-Setup-{#MyAppVersion}
 #ifdef FastCompress
 Compression=lzma2/fast
 SolidCompression=no
+LZMANumBlockThreads=8
 #else
 Compression=lzma2/ultra64
 SolidCompression=yes

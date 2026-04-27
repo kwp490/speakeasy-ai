@@ -115,6 +115,11 @@ class TextProcessor:
         self._total_input_tokens: int = 0
         self._total_output_tokens: int = 0
         self._last_tok_per_sec: float = 0.0
+        self._last_call_time: float = 0.0  # monotonic timestamp of last result
+        # Monotonically increasing counter — bumped after every successful
+        # API completion so the Developer Panel sparkline can dedupe samples
+        # between resource-monitor polls.
+        self._call_seq: int = 0
         self._ensure_client()
 
     def _ensure_client(self) -> None:
@@ -198,6 +203,8 @@ class TextProcessor:
             self._total_input_tokens += in_tok
             self._total_output_tokens += out_tok
             self._last_tok_per_sec = out_tok / max(_elapsed, 0.001)
+            self._last_call_time = _time.monotonic()
+            self._call_seq += 1
 
             cleaned = response.choices[0].message.content
             return cleaned.strip() if cleaned else text
@@ -228,9 +235,19 @@ class TextProcessor:
             return False, f"Unexpected error: {_sanitize_error(exc, self._api_key)}"
 
     @property
-    def token_stats(self) -> tuple[float, int, int]:
-        """Return ``(tok_per_sec, total_input_tokens, total_output_tokens)``."""
-        return self._last_tok_per_sec, self._total_input_tokens, self._total_output_tokens
+    def token_stats(self) -> tuple[float, int, int, int]:
+        """Return ``(tok_per_sec, total_input_tokens, total_output_tokens, call_seq)``.
+
+        ``tok_per_sec`` is the raw value from the most recent API call (no
+        decay); ``call_seq`` increments by one per successful call so the
+        Developer Panel sparkline can dedupe samples between polls.
+        """
+        return (
+            self._last_tok_per_sec,
+            self._total_input_tokens,
+            self._total_output_tokens,
+            self._call_seq,
+        )
 
 
 # ── Keyring helpers ──────────────────────────────────────────────────────────

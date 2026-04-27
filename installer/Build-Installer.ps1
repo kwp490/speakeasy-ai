@@ -607,11 +607,11 @@ if ($Mode -eq 'Release') {
 if ($SkipTests) {
     Write-Warn "Test suite skipped (-SkipTests)"
 } else {
-    Write-Step "Running test suite (uv run pytest tests/ -v)..."
+    Write-Step "Running test suite (uv run pytest tests/ -v -n auto)..."
     $prevPref = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     try {
-        uv run pytest tests/ -v 2>&1 | ForEach-Object { Write-Host "  $_" }
+        uv run pytest tests/ -v -n auto 2>&1 | ForEach-Object { Write-Host "  $_" }
     } finally {
         $ErrorActionPreference = $prevPref
     }

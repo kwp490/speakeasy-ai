@@ -44,7 +44,7 @@ class TestSparklineEdgeCases:
 
 class TestSparklineSizing:
     def test_sparkline_minimum_height(self, sparkline):
-        assert sparkline.minimumHeight() == 60
+        assert sparkline.minimumHeight() == 70
 
     def test_sparkline_minimum_width(self, sparkline):
         assert sparkline.minimumWidth() == 200

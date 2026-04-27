@@ -918,6 +918,18 @@ class MainWindow(QMainWindow):
             else:
                 rw.update_vram(0, 0, 0)
                 rw.update_gpu("—")
+            # Forward LLM token stats so the sparkline updates continuously
+            if self._text_processor is not None:
+                tps, ti, to, llm_seq = self._text_processor.token_stats
+            else:
+                tps, ti, to, llm_seq = 0.0, 0, 0, 0
+            rw.update_tokens(tps, ti, to, seq=llm_seq)
+            # Forward ASR (Cohere) token stats
+            if self._engine is not None and hasattr(self._engine, 'token_stats'):
+                asr_tps, asr_tot, asr_audio, asr_rtf, asr_seq = self._engine.token_stats
+            else:
+                asr_tps, asr_tot, asr_audio, asr_rtf, asr_seq = 0.0, 0, 0.0, 0.0, 0
+            rw.update_asr_tokens(asr_tps, asr_tot, asr_audio, asr_rtf, seq=asr_seq)
 
     # —— Validate ——————————————————————————————————————————————————————————————
 
@@ -1201,8 +1213,8 @@ class MainWindow(QMainWindow):
 
         # Forward token stats to Developer Panel
         if self._dev_panel is not None and self._text_processor is not None:
-            tps, ti, to = self._text_processor.token_stats
-            self._dev_panel.realtime_widget.update_tokens(tps, ti, to)
+            tps, ti, to, llm_seq = self._text_processor.token_stats
+            self._dev_panel.realtime_widget.update_tokens(tps, ti, to, seq=llm_seq)
 
         if cleaned and cleaned != original:
             self._log_ui(f"Professional cleanup: {len(original)} -> {len(cleaned)} chars")
@@ -1480,6 +1492,9 @@ class MainWindow(QMainWindow):
             self._dev_panel = DeveloperPanel(self.settings, self)
             self._dev_panel.closed.connect(self._on_dev_panel_closed)
             self._flush_log_buffer()
+            # Push current engine/device/status into the freshly built panel
+            # so the Realtime Data tab reflects state from before it existed.
+            self._set_model_status(self._model_status)
         if self._dev_panel.isVisible():
             self._dev_panel.hide()
             self._btn_dev_panel.setChecked(False)
