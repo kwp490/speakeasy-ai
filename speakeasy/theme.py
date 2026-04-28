@@ -8,9 +8,14 @@ values or magic spacing numbers anywhere else in the codebase.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import QFormLayout, QLabel, QVBoxLayout, QWidget
+
+
+ICON_DIR = Path(__file__).parent / "assets" / "icons"
 
 
 # ── Color tokens ──────────────────────────────────────────────────────────────
@@ -20,9 +25,10 @@ class Color:
     BACKGROUND = "#0F172A"       # app background (slate-900)
     PANEL = "#111827"            # cards, group boxes (gray-900)
     PANEL_ELEVATED = "#1F2937"   # hover/active surfaces (gray-800)
+    PANEL_HOVER = "#252F3E"      # clickable status cards
     BORDER = "#1F2937"           # default border
     BORDER_SUBTLE = "#374151"    # tab borders, subtle dividers
-    INPUT_BG = "#020617"         # text inputs, dropdowns
+    INPUT_BG = "#1F2937"         # text inputs, dropdowns (gray-800, per spec)
 
     # Brand / actions
     PRIMARY = "#2563EB"          # primary buttons, active tabs (blue-600)
@@ -58,6 +64,7 @@ class Spacing:
     SM = 8    # base unit (default gap)
     MD = 12   # small section internal gap
     LG = 16   # standard padding (card interior, panel padding)
+    SECTION = 20  # vertical gap between sections (per UI correction spec; intentionally off 8px grid)
     XL = 24   # section separation
     XXL = 32  # major separation
 
@@ -87,6 +94,11 @@ class Size:
     TAB_HEIGHT = 40
     PROGRESS_BAR_HEIGHT = 6        # thin bars in Realtime Data
     STATUS_DOT = 8                 # colored dots in status row
+    STATUS_ICON_CARD = 24
+    STATUS_ICON_PILL = 18
+    STATUS_CARD_MIN_HEIGHT = 64
+    STATUS_PILL_MIN_HEIGHT = 32
+    STATUS_LAYOUT_THRESHOLD = 640
     BORDER_RADIUS_SM = 6
     BORDER_RADIUS_MD = 8
     BORDER_RADIUS_LG = 10          # primary buttons
@@ -101,6 +113,46 @@ class Motion:
 
 
 # ── Stylesheet builders ───────────────────────────────────────────────────────
+
+def load_icon(name: str) -> QIcon:
+    """Load an SVG icon from assets/icons/<name>.svg as a QIcon."""
+    from PySide6.QtSvg import QSvgRenderer
+
+    icon_path = ICON_DIR / f"{name}.svg"
+    QSvgRenderer(str(icon_path))
+    return QIcon(str(icon_path))
+
+
+def status_card_style() -> str:
+    """Base panel styling for non-clickable status cards and pills."""
+    return f"""
+        QFrame#StatusCard {{
+            background-color: {Color.PANEL_ELEVATED};
+            border: 1px solid {Color.BORDER_SUBTLE};
+            border-radius: {Size.BORDER_RADIUS_LG}px;
+        }}
+        QFrame#StatusCard:focus {{
+            border: 2px solid {Color.PRIMARY};
+        }}
+    """
+
+
+def status_card_hover_style() -> str:
+    """Base plus hover/focus styling for clickable status cards and pills."""
+    return f"""
+        QFrame#StatusCard {{
+            background-color: {Color.PANEL_ELEVATED};
+            border: 1px solid {Color.BORDER_SUBTLE};
+            border-radius: {Size.BORDER_RADIUS_LG}px;
+        }}
+        QFrame#StatusCard:hover {{
+            background-color: {Color.PANEL_HOVER};
+            border-color: {Color.PRIMARY};
+        }}
+        QFrame#StatusCard:focus {{
+            border: 2px solid {Color.PRIMARY};
+        }}
+    """
 
 def app_stylesheet() -> str:
     """Global QSS applied at QApplication level. Sets baseline for every
@@ -133,7 +185,7 @@ def app_stylesheet() -> str:
         QPushButton {{
             background-color: {Color.PANEL_ELEVATED};
             border: 1px solid {Color.BORDER_SUBTLE};
-            border-radius: {Size.BORDER_RADIUS_SM}px;
+            border-radius: {Size.BORDER_RADIUS_MD}px;
             padding: {Spacing.SM}px {Spacing.MD}px;
             color: {Color.TEXT_BODY};
             min-height: {Size.BUTTON_HEIGHT - 16}px;
@@ -151,7 +203,7 @@ def app_stylesheet() -> str:
             border-radius: {Size.BORDER_RADIUS_MD}px;
             padding: {Spacing.SM}px {Spacing.MD}px;
             color: {Color.TEXT_BODY};
-            min-height: {Size.INPUT_HEIGHT - 16}px;
+            min-height: {Size.INPUT_HEIGHT - 18}px;
         }}
         QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {{
             border-color: {Color.PRIMARY};
@@ -318,7 +370,7 @@ def make_section(title: str, parent: QWidget = None) -> tuple[QWidget, QFormLayo
     container = QWidget(parent)
     vbox = QVBoxLayout(container)
     vbox.setContentsMargins(0, 0, 0, 0)
-    vbox.setSpacing(Spacing.MD)
+    vbox.setSpacing(Spacing.XS)     # 4 — gap between section title and form
 
     title_label = QLabel(title)
     font = QFont(Font.FAMILY, Font.SECTION_HEADER[0])
@@ -329,7 +381,7 @@ def make_section(title: str, parent: QWidget = None) -> tuple[QWidget, QFormLayo
 
     form = QFormLayout()
     form.setContentsMargins(0, 0, 0, 0)
-    form.setSpacing(Spacing.MD)
+    form.setSpacing(Spacing.SM)     # 8 — gap between fields
     form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
     form.setFormAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
     vbox.addLayout(form)
@@ -337,6 +389,28 @@ def make_section(title: str, parent: QWidget = None) -> tuple[QWidget, QFormLayo
     return container, form
 
 
+def make_toggle_row(label_text: str, toggle: QWidget, parent: QWidget = None) -> QWidget:
+    """Build a horizontal row: [Label .... spacer .... Toggle].
+
+    Used for boolean settings where the toggle is the only control and a
+    space-between layout reads cleaner than a form-style label-left layout.
+    Row height is constrained to ~32px per spec.
+    """
+    from PySide6.QtWidgets import QHBoxLayout
+    container = QWidget(parent)
+    container.setFixedHeight(32)
+    h = QHBoxLayout(container)
+    h.setContentsMargins(0, 0, 0, 0)
+    h.setSpacing(Spacing.SM)
+
+    label = QLabel(label_text)
+    label.setStyleSheet(f"color: {Color.TEXT_BODY};")
+    h.addWidget(label)
+    h.addStretch()
+    h.addWidget(toggle)
+    return container
+
+
 def section_separator_spacing() -> int:
     """The vertical gap between two sections in a tab."""
-    return Spacing.XL  # 24px
+    return Spacing.SECTION  # 20px (per UI correction spec)

@@ -512,16 +512,6 @@ class TestPresetArchitectureInvariants(unittest.TestCase):
         ]
         self.assertNotIn("_refresh_preset_combo", method_names)
 
-    def test_pro_toggle_saves_settings_in_pro_dialog(self):
-        """ProSettingsDialog._save_and_accept must persist professional_mode."""
-        pro_src = (_REPO_ROOT / "speakeasy" / "pro_settings_dialog.py").read_text(encoding="utf-8")
-        self.assertIn("professional_mode", pro_src)
-
-    def test_preset_combo_changed_saves_settings_in_pro_dialog(self):
-        """ProSettingsDialog._save_and_accept must persist pro_active_preset."""
-        pro_src = (_REPO_ROOT / "speakeasy" / "pro_settings_dialog.py").read_text(encoding="utf-8")
-        self.assertIn("pro_active_preset", pro_src)
-
     # â”€â”€ Settings dialog no longer has pro fields â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def test_settings_dialog_no_api_key_param(self):

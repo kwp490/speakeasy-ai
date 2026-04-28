@@ -1,7 +1,6 @@
 """Tests for the ProModeWidget (replacement for the modal ProSettingsDialog).
 
-Validates construction, enable toggle behaviour, disclosure callback,
-and that pro_settings_dialog.py is still a separate module (not deleted).
+Validates construction, enable toggle behaviour, and disclosure callback.
 """
 
 from __future__ import annotations

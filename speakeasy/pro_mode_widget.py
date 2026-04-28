@@ -8,7 +8,6 @@ from typing import Optional, Callable
 
 from PySide6.QtCore import QThreadPool, Signal
 from PySide6.QtWidgets import (
-    QCheckBox,
     QComboBox,
     QFormLayout,
     QHBoxLayout,
@@ -76,17 +75,18 @@ class ProModeWidget(QWidget):
     # ── UI construction ──────────────────────────────────────────────────
 
     def _build_ui(self) -> None:
-        from .theme import Spacing, make_section
+        from .theme import Color, Spacing, make_section, make_toggle_row
+        from .main_window import ToggleSwitch
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
-        outer.setSpacing(Spacing.XL)
+        outer.setSpacing(Spacing.SECTION)  # 20px between sections
 
         # ── Enable section ───────────────────────────────────────────────
         enable_section, enable_form = make_section("Enable", self)
-        self._pro_enabled = QCheckBox("Enable Professional Mode")
+        self._pro_enabled = ToggleSwitch("")
         self._pro_enabled.toggled.connect(self._on_enable_toggled)
-        enable_form.addRow(self._pro_enabled)
+        enable_form.addRow(make_toggle_row("Enable Professional Mode", self._pro_enabled))
         outer.addWidget(enable_section)
 
         # ── API section ──────────────────────────────────────────────────
@@ -111,10 +111,8 @@ class ProModeWidget(QWidget):
         key_row.addWidget(self._btn_eye)
         api_form.addRow("API key:", key_row)
 
-        self._pro_store_key = QCheckBox(
-            "Remember API key (Windows Credential Manager)"
-        )
-        api_form.addRow(self._pro_store_key)
+        self._pro_store_key = ToggleSwitch("")
+        api_form.addRow(make_toggle_row("Remember API key (Windows Credential Manager)", self._pro_store_key))
 
         validate_row = QHBoxLayout()
         self._btn_validate_key = QPushButton("Validate API Key")
@@ -163,13 +161,13 @@ class ProModeWidget(QWidget):
         self._preset_model.addItems(["(use default)", "gpt-5.4-mini", "gpt-5.4-nano"])
         presets_form.addRow("Model override:", self._preset_model)
 
-        self._preset_fix_tone = QCheckBox("Fix tone")
+        self._preset_fix_tone = ToggleSwitch("Fix tone")
         presets_form.addRow(self._preset_fix_tone)
 
-        self._preset_fix_grammar = QCheckBox("Fix grammar")
+        self._preset_fix_grammar = ToggleSwitch("Fix grammar")
         presets_form.addRow(self._preset_fix_grammar)
 
-        self._preset_fix_punctuation = QCheckBox(
+        self._preset_fix_punctuation = ToggleSwitch(
             "Fix punctuation && capitalization"
         )
         presets_form.addRow(self._preset_fix_punctuation)
@@ -432,14 +430,15 @@ class ProModeWidget(QWidget):
         )
 
     def _on_validate_api_key(self) -> None:
+        from .theme import Color
         key = self._pro_api_key.text().strip()
         if not key:
             self._lbl_validate_result.setText("\u274c No API key entered")
-            self._lbl_validate_result.setStyleSheet("color: #c62828;")
+            self._lbl_validate_result.setStyleSheet(f"color: {Color.DANGER};")
             return
 
         self._lbl_validate_result.setText("Validating\u2026")
-        self._lbl_validate_result.setStyleSheet("color: #757575;")
+        self._lbl_validate_result.setStyleSheet(f"color: {Color.TEXT_MUTED};")
         self._btn_validate_key.setEnabled(False)
 
         model = self._pro_model.currentText()
@@ -455,19 +454,21 @@ class ProModeWidget(QWidget):
         QThreadPool.globalInstance().start(worker)
 
     def _on_validate_result(self, result: tuple) -> None:
+        from .theme import Color
         self._btn_validate_key.setEnabled(True)
         ok, msg = result
         if ok:
             self._lbl_validate_result.setText(f"\u2705 {msg}")
-            self._lbl_validate_result.setStyleSheet("color: #2e7d32;")
+            self._lbl_validate_result.setStyleSheet(f"color: {Color.SUCCESS};")
         else:
             self._lbl_validate_result.setText(f"\u274c {msg}")
-            self._lbl_validate_result.setStyleSheet("color: #c62828;")
+            self._lbl_validate_result.setStyleSheet(f"color: {Color.DANGER};")
 
     def _on_validate_error(self, err: str) -> None:
+        from .theme import Color
         self._btn_validate_key.setEnabled(True)
         self._lbl_validate_result.setText(f"\u274c {err}")
-        self._lbl_validate_result.setStyleSheet("color: #c62828;")
+        self._lbl_validate_result.setStyleSheet(f"color: {Color.DANGER};")
 
     # ── Properties ───────────────────────────────────────────────────────
 

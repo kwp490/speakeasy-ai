@@ -71,6 +71,7 @@ a = Analysis(
         'PySide6.QtWidgets',
         'PySide6.QtCore',
         'PySide6.QtGui',
+        'PySide6.QtSvg',
         'sounddevice',
         'soundfile',
         '_soundfile_data',
@@ -149,7 +150,6 @@ _STRIP_PATTERNS = [
     _re.compile(r'Qt6Pdf', _re.I),
     _re.compile(r'Qt6VirtualKeyboard', _re.I),
     _re.compile(r'Qt6OpenGL', _re.I),
-    _re.compile(r'Qt6Svg', _re.I),
     _re.compile(r'opengl32sw', _re.I),
     # Qt translations and plugins not used by the app
     _re.compile(r'PySide6[\\/]translations[\\/]', _re.I),

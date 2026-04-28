@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pytest
 
 # Force Qt offscreen rendering for headless CI
@@ -55,3 +56,54 @@ def fresh_settings(temp_settings_dir):
     """A clean Settings instance with default values, isolated to temp dir."""
     from speakeasy.config import Settings
     return Settings()
+
+
+# ── Hardware isolation for MainWindow tests ──────────────────────────────────
+
+class _FakeAudioRecorder:
+    """No-op recorder used by MainWindow tests so xdist never opens a real mic."""
+
+    def __init__(
+        self,
+        sample_rate=16000,
+        silence_threshold=0.0015,
+        silence_margin_ms=500,
+        device=None,
+    ):
+        self.sample_rate = sample_rate
+        self.silence_threshold = silence_threshold
+        self.silence_margin = int(sample_rate * silence_margin_ms / 1000)
+        self.device = device
+        self._recording = False
+        self._audio = np.zeros(sample_rate, dtype=np.float32)
+
+    def open_stream(self) -> None:
+        pass
+
+    def close_stream(self) -> None:
+        pass
+
+    def stream_is_alive(self, timeout: float = 0.5) -> bool:
+        return True
+
+    def recover_stream(self) -> bool:
+        return True
+
+    def start_recording(self) -> None:
+        self._recording = True
+
+    def stop_recording(self) -> None:
+        self._recording = False
+
+    def get_raw_audio(self):
+        self._recording = False
+        return self._audio.copy()
+
+    def trim_silence(self, audio):
+        return audio, 0.0
+
+
+@pytest.fixture(autouse=True)
+def _mock_main_window_audio(monkeypatch):
+    """Patch only MainWindow's recorder binding; audio.py unit tests stay real."""
+    monkeypatch.setattr("speakeasy.main_window.AudioRecorder", _FakeAudioRecorder)

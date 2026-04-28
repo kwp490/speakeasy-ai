@@ -61,6 +61,7 @@ from .engine.cohere_transcribe import CohereTranscribeEngine
 from .hotkeys import HotkeyManager
 from ._resource_monitor import ResourceMonitor
 from .pro_preset import ProPreset, bootstrap_presets, load_all_presets
+from .status_pills import ProMode, StatusPillBar
 from .text_processor import TextProcessor, load_api_key_from_keyring
 from .workers import DedicatedWorkerPool, Worker
 
@@ -96,6 +97,10 @@ class DictationState(str, Enum):
     SUCCESS = "Success"
     ERROR = "Error"
 
+    @property
+    def display(self) -> str:
+        return _DICTATION_STATE_DISPLAY[self]
+
 
 class ModelStatus(str, Enum):
     NOT_LOADED = "Not loaded"
@@ -104,6 +109,29 @@ class ModelStatus(str, Enum):
     VALIDATING = "Validating…"
     VALIDATED = "Validated"
     ERROR = "Error"
+
+    @property
+    def display(self) -> str:
+        return _MODEL_STATUS_DISPLAY[self]
+
+
+_DICTATION_STATE_DISPLAY = {
+    DictationState.IDLE: "Idle",
+    DictationState.RECORDING: "Recording",
+    DictationState.PROCESSING: "Transcribing",
+    DictationState.SUCCESS: "Complete",
+    DictationState.ERROR: "Error",
+}
+
+
+_MODEL_STATUS_DISPLAY = {
+    ModelStatus.NOT_LOADED: "Not loaded",
+    ModelStatus.LOADING: "Loading",
+    ModelStatus.READY: "Ready",
+    ModelStatus.VALIDATING: "Validating",
+    ModelStatus.VALIDATED: "Ready",
+    ModelStatus.ERROR: "Error",
+}
 
 
 # ── Toggle switch widget ──────────────────────────────────────────────────────
@@ -116,13 +144,13 @@ class ToggleSwitch(QAbstractButton):
     toggled(bool) signal inherited from QAbstractButton.
     """
 
-    from .theme import Color as _TC, Motion as _TM
+    from .theme import Color as _TC, Motion as _TM, Spacing as _TS
     _TRACK_ON  = QColor(_TC.PRIMARY)
     _TRACK_OFF = QColor(_TC.BORDER_SUBTLE)
     _KNOB      = QColor("#ffffff")
-    _TRACK_W   = 44
-    _TRACK_H   = 24
-    _KNOB_D    = 18  # knob diameter
+    _TRACK_W   = 38   # within spec range 36-40
+    _TRACK_H   = 22   # within spec range 20-22
+    _KNOB_D    = 16   # knob diameter (proportional: ~73% of track height)
 
     def __init__(self, text: str = "", parent=None):
         super().__init__(parent)
@@ -166,7 +194,7 @@ class ToggleSwitch(QAbstractButton):
         from PySide6.QtGui import QFontMetrics
         text_w = QFontMetrics(self.font()).horizontalAdvance(self.text())
         gap = 8 if self.text() else 0
-        return QSize(self._TRACK_W + gap + text_w, max(self._TRACK_H, 20))
+        return QSize(self._TRACK_W + gap + text_w, max(self._TRACK_H, 22))
 
     # ── Painting ──────────────────────────────────────────────────────────────
 
@@ -198,7 +226,7 @@ class ToggleSwitch(QAbstractButton):
         # ── Label text ────────────────────────────────────────────────────────
         if self.text():
             p.setPen(QPen(QColor("#cccccc")))
-            text_x = self._TRACK_W + 8
+            text_x = self._TRACK_W + self._TS.SM
             text_rect = QRect(text_x, 0, self.width() - text_x, self.height())
             p.drawText(text_rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
                        self.text())
@@ -441,6 +469,7 @@ class MainWindow(QMainWindow):
         # ── State ────────────────────────────────────────────────────────────
         self._dictation_state = DictationState.IDLE
         self._model_status = ModelStatus.NOT_LOADED
+        self._device_fallback_to_cpu: bool = False
         self._model_load_start: float = 0.0
         self._last_resume_time: float = 0.0
         self._mic_suspended_for_processing = False
@@ -541,14 +570,11 @@ class MainWindow(QMainWindow):
         record_row.addWidget(self._btn_dev_panel)
         root.addLayout(record_row)
 
-        # ── Status indicators (model + dictation) ────────────────────────────
-        status_row_top = QHBoxLayout()
-        self._lbl_global_status = QLabel()
-        self._lbl_global_status.setTextFormat(Qt.TextFormat.RichText)
-        self._lbl_global_status.setFont(QFont(Font.FAMILY, Font.BODY[0]))
-        status_row_top.addWidget(self._lbl_global_status)
-        status_row_top.addStretch()
-        root.addLayout(status_row_top)
+        # ── Status indicators (model + dictation + professional mode) ───────
+        self._status_bar = StatusPillBar(self)
+        self._status_bar.ai_model_clicked.connect(self._on_open_settings)
+        self._status_bar.pro_mode_clicked.connect(self._on_open_pro_settings)
+        root.addWidget(self._status_bar)
         self._update_global_status()
 
         # Row 1: output-behaviour toggles (inline, no card)
@@ -644,59 +670,29 @@ class MainWindow(QMainWindow):
 
     def _update_global_status(self) -> None:
         """Refresh the unified status bar with model, dictation, and professional mode state."""
-        from .theme import Color as TC
+        if not hasattr(self, "_status_bar"):
+            return
 
-        # Engine status
-        model_color_map = {
-            ModelStatus.READY: TC.SUCCESS,
-            ModelStatus.VALIDATED: TC.SUCCESS,
-            ModelStatus.LOADING: TC.WARNING,
-            ModelStatus.NOT_LOADED: TC.TEXT_MUTED,
-            ModelStatus.VALIDATING: TC.INFO,
-            ModelStatus.ERROR: TC.DANGER,
-        }
-        engine_color = model_color_map.get(self._model_status, TC.TEXT_MUTED)
-        device_label = "GPU" if self.settings.device == "cuda" else "CPU"
-        engine_display = self._engine.name.capitalize()
-        engine_seg = self._dot_segment(
-            f"{engine_display} ({device_label})", self._model_status.value, engine_color,
+        engine_display = str(getattr(self._engine, "name", "cohere")).capitalize()
+        device_label = "GPU" if self.settings.device == "cuda" and not self._device_fallback_to_cpu else "CPU"
+        self._status_bar.set_ai_model(
+            name=engine_display,
+            device=device_label,
+            status=self._model_status,
+            fallback=self._device_fallback_to_cpu,
         )
+        self._status_bar.set_dictation(self._dictation_state)
 
-        # Dictation status
-        dict_color_map = {
-            DictationState.IDLE: TC.TEXT_MUTED,
-            DictationState.RECORDING: TC.DANGER,
-            DictationState.PROCESSING: TC.WARNING,
-            DictationState.SUCCESS: TC.SUCCESS,
-            DictationState.ERROR: TC.DANGER,
-        }
-        dict_color = dict_color_map.get(self._dictation_state, TC.TEXT_MUTED)
-        dict_seg = self._dot_segment("Dictation", self._dictation_state.value, dict_color)
-
-        # Professional mode status
-        if self.settings.professional_mode and self._text_processor is not None:
-            pro_text = self.settings.pro_active_preset
-            pro_color = TC.SUCCESS
-        elif self.settings.professional_mode:
-            pro_text = "No API Key"
-            pro_color = TC.WARNING
+        if self.settings.professional_mode and self._pro_worker is not None:
+            pro_mode = ProMode.PROCESSING
+            preset_name = self.settings.pro_active_preset
+        elif self.settings.professional_mode and self._text_processor is not None:
+            pro_mode = ProMode.ACTIVE
+            preset_name = self.settings.pro_active_preset
         else:
-            pro_text = "Inactive"
-            pro_color = TC.TEXT_MUTED
-
-        pro_seg = self._dot_segment("Professional", pro_text, pro_color)
-        self._lbl_global_status.setText(
-            "&nbsp;&nbsp;\u2022&nbsp;&nbsp;".join([engine_seg, dict_seg, pro_seg])
-        )
-
-    @staticmethod
-    def _dot_segment(label: str, value: str, value_color: str) -> str:
-        from .theme import Color as TC
-        return (
-            f'<span style="color: {value_color};">\u25cf</span>'
-            f'<span style="color: {TC.TEXT_MUTED};"> {label}: </span>'
-            f'<span style="color: {value_color}; font-weight: 500;">{value}</span>'
-        )
+            pro_mode = ProMode.OFF
+            preset_name = None
+        self._status_bar.set_pro_mode(pro_mode, preset_name)
 
     # ═════════════════════════════════════════════════════════════════════════
     # LOGGING INTEGRATION
@@ -805,6 +801,7 @@ class MainWindow(QMainWindow):
 
     def _load_model(self) -> None:
         """Begin model loading on a worker thread."""
+        self._device_fallback_to_cpu = False
         self._set_model_status(ModelStatus.LOADING)
         self._model_load_start = time.time()
         self._loading_timer.start()
@@ -822,10 +819,21 @@ class MainWindow(QMainWindow):
     def _on_model_loaded(self, _result) -> None:
         self._loading_timer.stop()
         elapsed = time.time() - self._model_load_start
+        actual_device = self._actual_engine_device()
+        self._device_fallback_to_cpu = (
+            self.settings.device == "cuda" and actual_device == "cpu"
+        )
         self._set_model_status(ModelStatus.READY)
-        device_label = "GPU" if self.settings.device == "cuda" else "CPU"
+        device_label = "CPU" if actual_device == "cpu" else "GPU"
         self._lbl_engine.setText(f"Engine: {self._engine.name}  \u00b7  Device: {device_label}")
         self._log_ui(f"Model loaded in {elapsed:.1f}s")
+
+    def _actual_engine_device(self) -> str:
+        actual_device = getattr(self._engine, "actual_device", None)
+        if actual_device is None:
+            actual_device = getattr(self._engine, "device", self.settings.device)
+        actual_text = str(actual_device).lower()
+        return "cuda" if actual_text.startswith("cuda") else "cpu"
 
     @Slot(str)
     def _on_model_load_error(self, err: str) -> None:
@@ -851,6 +859,7 @@ class MainWindow(QMainWindow):
             self._engine.unload()
             self._engine.load(self.settings.model_path, self.settings.device)
 
+        self._device_fallback_to_cpu = False
         self._set_model_status(ModelStatus.LOADING)
         self._model_load_start = time.time()
         self._loading_timer.start()
@@ -1162,6 +1171,7 @@ class MainWindow(QMainWindow):
                 self._pro_worker.signals.result.connect(self._on_professional_result)
                 self._pro_worker.signals.error.connect(self._on_professional_error)
                 self._pro_worker.signals.finished.connect(self._on_professional_finished)
+                self._update_global_status()
                 self._pool.start(self._pro_worker)
 
                 # Safety timeout — if signal delivery fails for any
@@ -1283,6 +1293,7 @@ class MainWindow(QMainWindow):
     def _on_professional_finished(self) -> None:
         """Worker done — drop the reference (prevent leak)."""
         self._pro_worker = None
+        self._update_global_status()
 
     def _cancel_pro_timeout(self) -> None:
         """Stop the safety timer and clear professional-mode context."""
@@ -1299,6 +1310,7 @@ class MainWindow(QMainWindow):
         self._pro_timeout = None
         self._pro_context = None
         self._pro_worker = None
+        self._update_global_status()
         if ctx is None:
             return  # result/error already handled normally
         ts, original = ctx
@@ -1716,6 +1728,8 @@ class MainWindow(QMainWindow):
         self._chk_auto_paste.setChecked(s.auto_paste)
 
         # Professional Mode
+        if s.device != "cuda":
+            self._device_fallback_to_cpu = False
         self._active_preset = self._pro_presets.get(s.pro_active_preset)
         if s.professional_mode and self._api_key and self._active_preset:
             model = self._active_preset.model or "gpt-5.4-mini"
@@ -1824,6 +1838,7 @@ class MainWindow(QMainWindow):
                 )
                 if reply == QMessageBox.StandardButton.Yes:
                     self._on_open_pro_settings()
+                self._update_global_status()
                 return
             if self._active_preset is None:
                 self._chk_professional.blockSignals(True)
@@ -1841,6 +1856,7 @@ class MainWindow(QMainWindow):
                 )
                 if reply == QMessageBox.StandardButton.Yes:
                     self._on_open_pro_settings()
+                self._update_global_status()
                 return
             # All prerequisites met — show one-time data-privacy disclosure
             if not self.settings.pro_disclosure_accepted:
@@ -1871,6 +1887,7 @@ class MainWindow(QMainWindow):
                     self._chk_professional.blockSignals(True)
                     self._chk_professional.setChecked(False)
                     self._chk_professional.blockSignals(False)
+                    self._update_global_status()
                     return
                 self.settings.pro_disclosure_accepted = True
             # All prerequisites met — enable

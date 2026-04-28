@@ -33,6 +33,8 @@ class CohereTranscribeEngine(SpeechEngine):
         self._last_tok_per_sec: float = 0.0
         self._last_realtime_factor: float = 0.0
         self._last_inference_time: float = 0.0  # monotonic timestamp
+        self._device: str = "cpu"
+        self._actual_device: str = "cpu"
         # Monotonically increasing counter — incremented after every chunk
         # transcription so the Developer Panel sparkline can dedupe samples
         # without depending on a decay window.
@@ -47,6 +49,10 @@ class CohereTranscribeEngine(SpeechEngine):
     @property
     def vram_estimate_gb(self) -> float:
         return 5.0
+
+    @property
+    def actual_device(self) -> str:
+        return self._actual_device
 
     def load(self, model_path: str, device: str = "cuda") -> None:
         import torch
@@ -78,6 +84,9 @@ class CohereTranscribeEngine(SpeechEngine):
             device_map=device if device == "cuda" else "cpu",
             torch_dtype=torch.float16 if device == "cuda" else torch.float32,
         )
+        model_device = getattr(self._model, "device", device)
+        model_device_text = str(model_device).lower()
+        self._actual_device = "cuda" if model_device_text.startswith("cuda") else "cpu"
 
         # The Cohere model's _ensure_decode_pool uses mp.get_context("fork")
         # which is unavailable on Windows (only "spawn" is supported).  Patch
@@ -99,7 +108,7 @@ class CohereTranscribeEngine(SpeechEngine):
 
             self._model._ensure_decode_pool = _patched_ensure_decode_pool
 
-        log.info("Cohere Transcribe loaded on %s", device)
+        log.info("Cohere Transcribe loaded on %s", self._actual_device)
 
         # Read model-config limits for chunking and token budget.
         cfg = getattr(self._model, "config", None)

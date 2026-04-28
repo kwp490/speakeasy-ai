@@ -148,14 +148,20 @@ class TestEngineRuntimeDependencies(unittest.TestCase):
 
     def test_cohere_feature_extractor_runs_without_sklearn(self):
         """The active Cohere feature-extractor path must not require sklearn."""
+        import gc
         blocked_names: list[str] = []
         real_import = builtins.__import__
+
+        # Only flush sklearn and the extractor module itself.
+        # Do NOT evict librosa from sys.modules: a fresh librosa import inside
+        # a guarded builtins.__import__ context creates a per-module _ModuleLock
+        # that can outlive the test (kept alive by lazy-loader weakrefs) and
+        # causes test_librosa_importable to deadlock on the same xdist worker.
+        # librosa does not import sklearn, so keeping it cached is safe.
         saved_modules = {
             name: module
             for name, module in list(sys.modules.items())
-            if name == "librosa"
-            or name.startswith("librosa.")
-            or name == "sklearn"
+            if name == "sklearn"
             or name.startswith("sklearn.")
             or name == "transformers.models.cohere_asr.feature_extraction_cohere_asr"
         }
@@ -169,6 +175,9 @@ class TestEngineRuntimeDependencies(unittest.TestCase):
                 raise ImportError("blocked sklearn for test")
             return real_import(name, *args, **kwargs)
 
+        extractor = None
+        output = None
+        module = None
         try:
             builtins.__import__ = guarded_import
             module = importlib.import_module(
@@ -183,7 +192,17 @@ class TestEngineRuntimeDependencies(unittest.TestCase):
             self.assertIn("input_features", output)
         finally:
             builtins.__import__ = real_import
+            extractor = None
+            output = None
+            module = None
+            # Purge sklearn + cohere-extractor entries then restore pre-test state.
+            for name in list(sys.modules.keys()):
+                if name == "sklearn" or name.startswith("sklearn.") or (
+                    name == "transformers.models.cohere_asr.feature_extraction_cohere_asr"
+                ):
+                    del sys.modules[name]
             sys.modules.update(saved_modules)
+            gc.collect()
 
         self.assertEqual(
             blocked_names,

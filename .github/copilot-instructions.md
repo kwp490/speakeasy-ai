@@ -7,6 +7,11 @@ HuggingFace Transformers (Cohere ASR engine), PyInstaller frozen builds, Inno
 Setup installer. Two build variants: GPU (CUDA via torch+cu128) and CPU.
 
 Package manager: **uv** (not pip). All commands use `uv run` / `uv sync`.
+Use the existing uv-managed project environment for Python commands; do not
+invoke VS Code/Pylance Python environment setup tools unless the task specifically
+requires interpreter metadata or switching interpreters. If `uv run ...` triggers
+environment creation/update, report that as uv behavior rather than repeatedly
+configuring a separate Python environment.
 
 ## Directory map
 

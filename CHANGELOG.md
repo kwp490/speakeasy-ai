@@ -5,6 +5,31 @@ All notable changes to SpeakEasy AI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - Status Pill Bar, SVG Icons & UI Consistency
+
+### Added
+- **Responsive Status Pill Bar** (`status_pills.py`): new three-card status widget (AI Model, Dictation, Professional Mode) that adapts between card and compact pill layouts based on window width; cards are clickable and display animated pulsing dots during recording/processing
+- **SVG icon system**: vector icons (brain, microphone, sparkles) for status cards with `load_icon()` helper in `theme.py` using `QSvgRenderer`; icons shipped in `speakeasy/assets/icons/`
+- **GPU fallback detection**: `CohereTranscribeEngine.actual_device` property reports device after model load; main window warns via status pill when GPU was requested but CPU was used
+- **Theme helpers**: `status_card_style()`, `status_card_hover_style()`, `make_toggle_row()`, `PANEL_HOVER` color, `Spacing.SECTION`, `Size.STATUS_ICON_CARD/PILL`, `Size.STATUS_CARD/PILL_MIN_HEIGHT`, `Size.STATUS_LAYOUT_THRESHOLD`
+- **Test audio isolation**: `_FakeAudioRecorder` mock in `conftest.py` prevents parallel xdist workers from opening real microphone streams
+
+### Changed
+- **Status display**: replaced HTML label (`_lbl_global_status`) with `StatusPillBar`; `DictationState` and `ModelStatus` enums gained `display` properties for readable text
+- **Toggle switch standardization**: replaced all `QCheckBox` widgets in Settings and Pro Mode dialogs with `ToggleSwitch`; consistent `make_toggle_row()` layout across both UIs
+- **Toggle switch sizing**: refined to 38×22 px with proportional 16 px knob (Material Design spec)
+- **Input background**: changed from `#020617` to `#1F2937` (gray-800) for better contrast per UI spec
+- **Build specs**: added `PySide6.QtSvg` to PyInstaller hidden imports; removed `Qt6Svg` from strip patterns so SVG icons render in frozen builds
+- **Professional Mode settings**: accessible via embedded `ProModeWidget` in the settings panel rather than a separate modal dialog
+- **Test isolation**: fixed `test_model_presence.py` librosa import test to avoid xdist deadlocks
+
+### Removed
+- `pro_settings_dialog.py` (595 lines) — modal Pro Mode dialog replaced by embedded widget
+- `tests/test_pro_settings_dialog_ok.py` (230 lines) — tests for deleted dialog
+- `_dot_segment()` helper — superseded by `StatusPillBar` methods
+
+---
+
 ## [0.6.1] - ASR Throughput Instrumentation & Sparkline Enhancements
 
 ### Added

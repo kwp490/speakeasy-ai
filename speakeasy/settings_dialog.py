@@ -16,7 +16,6 @@ from typing import Optional
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
-    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -84,11 +83,12 @@ class SettingsWidget(QWidget):
     # ── UI construction ──────────────────────────────────────────────────────
 
     def _build_ui(self) -> None:
-        from .theme import Color, Spacing, ghost_button_style, make_section
+        from .theme import Color, Spacing, ghost_button_style, make_section, make_toggle_row
+        from .main_window import ToggleSwitch
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
-        layout.setSpacing(Spacing.XL)
+        layout.setSpacing(Spacing.SECTION)  # 20px between sections
 
         # ── Model section ────────────────────────────────────────────────────
         model_section, engine_form = make_section("Model", self)
@@ -135,7 +135,7 @@ class SettingsWidget(QWidget):
         )
         engine_form.addRow("Language:", self._language_combo)
 
-        self._punctuation = QCheckBox("Enable automatic punctuation")
+        self._punctuation = ToggleSwitch("Enable automatic punctuation")
         self._punctuation.setToolTip(
             "Automatically inserts commas, periods, and other punctuation\n"
             "into the transcribed text based on natural speech patterns."
@@ -205,37 +205,35 @@ class SettingsWidget(QWidget):
         # ── UX Behavior section ──────────────────────────────────────────────
         ux_section, ux_form = make_section("UX Behavior", self)
 
-        self._auto_copy = QCheckBox("Auto-copy transcription to clipboard")
+        self._auto_copy = ToggleSwitch("")
         self._auto_copy.setToolTip(
             "Automatically copies the transcribed text to your clipboard\n"
             "after each recording completes."
         )
-        ux_form.addRow(self._auto_copy)
+        ux_form.addRow(make_toggle_row("Auto-copy transcription to clipboard", self._auto_copy))
 
-        self._auto_paste = QCheckBox("Auto-paste (Ctrl+V) after copy")
+        self._auto_paste = ToggleSwitch("")
         self._auto_paste.setToolTip(
             "Simulates a Ctrl+V keypress after copying, pasting the transcribed text\n"
             "directly into whatever application is currently focused."
         )
-        ux_form.addRow(self._auto_paste)
+        ux_form.addRow(make_toggle_row("Auto-paste (Ctrl+V) after copy", self._auto_paste))
 
-        self._hotkeys_enabled = QCheckBox("Enable global hotkeys")
+        self._hotkeys_enabled = ToggleSwitch("")
         self._hotkeys_enabled.setToolTip(
             "Allows the record hotkey to trigger even when SpeakEasy\n"
             "is not the focused window (runs in the background)."
         )
-        ux_form.addRow(self._hotkeys_enabled)
+        ux_form.addRow(make_toggle_row("Enable global hotkeys", self._hotkeys_enabled))
 
-        self._clear_logs_on_exit = QCheckBox("Clear logs on application exit")
+        self._clear_logs_on_exit = ToggleSwitch("")
         self._clear_logs_on_exit.setToolTip(
             "Erases the contents of the diagnostic log panel\n"
             "each time the application closes."
         )
-        ux_form.addRow(self._clear_logs_on_exit)
+        ux_form.addRow(make_toggle_row("Clear logs on application exit", self._clear_logs_on_exit))
 
-        self._streaming_partials = QCheckBox(
-            "Show live transcription as you speak (chunk-by-chunk)"
-        )
+        self._streaming_partials = ToggleSwitch("")
         _streaming_tip = (
             "Long recordings are transcribed in ~30 s chunks; when enabled,\n"
             "each chunk appears in the history pane as soon as it is ready\n"
@@ -248,7 +246,7 @@ class SettingsWidget(QWidget):
                 "than on GPU; disable this if your machine is slow."
             )
         self._streaming_partials.setToolTip(_streaming_tip)
-        ux_form.addRow(self._streaming_partials)
+        ux_form.addRow(make_toggle_row("Live transcription", self._streaming_partials))
 
         layout.addWidget(ux_section)
 

@@ -1,10 +1,10 @@
 ﻿"""Tests for the refactored MainWindow layout.
 
 Verifies:
-  Phase 1 â€“ Transcription section is dominant; buttons enlarged, no Dictation GroupBox.
-  Phase 2 â€“ Diagnostics panel collapsed by default; toggling shows/hides.
-  Phase 3 â€“ Status indicators placed between buttons and checkboxes (no QStatusBar).
-  Phase 4 â€“ Clear/Copy buttons are contextually placed in panel headers.
+    Phase 1 â€“ Transcription section is dominant; buttons enlarged, no Dictation GroupBox.
+    Phase 2 â€“ Diagnostics panel collapsed by default; toggling shows/hides.
+    Phase 3 â€“ Status pill bar placed between buttons and checkboxes (no QStatusBar).
+    Phase 4 â€“ Clear/Copy buttons are contextually placed in panel headers.
 """
 
 import ast
@@ -98,10 +98,11 @@ class TestLayoutStructure(unittest.TestCase):
 
     # â”€â”€ Phase 3 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-    def test_lbl_global_status_created(self):
-        """_build_ui must create self._lbl_global_status."""
+    def test_status_bar_created(self):
+        """_build_ui must create self._status_bar."""
         src = self._get_method_source("_build_ui")
-        self.assertIn("self._lbl_global_status", src)
+        self.assertIn("self._status_bar", src)
+        self.assertIn("StatusPillBar", self._source)
 
     def test_no_status_bar_in_build_ui(self):
         """QStatusBar must not be used in _build_ui (status moved inline)."""
@@ -218,7 +219,7 @@ class TestLayoutStructure(unittest.TestCase):
     def test_update_global_status_includes_professional(self):
         """_update_global_status must include Professional mode status."""
         src = self._get_method_source("_update_global_status")
-        self.assertIn("Professional", src)
+        self.assertIn("set_pro_mode", src)
 
     # â”€â”€ Engine worker isolation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -391,13 +392,11 @@ class TestDiagnosticsToggleLive(unittest.TestCase):
         finally:
             win.close()
 
-    def test_global_status_label_exists(self):
-        """The inline status label must exist and contain state info."""
+    def test_status_bar_exists(self):
+        """The inline status pill bar must exist."""
         win = self._make_window()
         try:
-            text = win._lbl_global_status.text()
-            self.assertIn("Dictation:", text)
-            self.assertIn("Professional:", text)
+            self.assertIsNotNone(win._status_bar)
         finally:
             win.close()
 
