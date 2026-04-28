@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "speakeasy"
-version = "0.7.0"
+version = "0.7.1"
 description = "SpeakEasy AI — Native Windows voice-to-text with GPU acceleration — Cohere Transcribe engine"
 readme = "README.md"
 license = "MIT"

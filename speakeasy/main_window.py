@@ -752,12 +752,21 @@ class MainWindow(QMainWindow):
         self._hotkey_mgr.quit_requested.connect(self.close)
         self._hotkey_mgr.dev_panel_toggle_requested.connect(self._on_toggle_dev_panel)
         if self.settings.hotkeys_enabled:
-            self._hotkey_mgr.register(
-                self.settings.hotkey_start,
-                self.settings.hotkey_quit,
-                hwnd=int(self.winId()),
-                hotkey_dev_panel=self.settings.hotkey_dev_panel,
-            )
+            # Defer Win32 RegisterHotKey by one event-loop tick so the native
+            # window handle (winId) is stable after show().  In PyInstaller
+            # frozen builds Qt can recreate the HWND during show(), which
+            # silently invalidates a hotkey registered earlier in __init__.
+            QTimer.singleShot(0, self._register_hotkeys)
+
+    @Slot()
+    def _register_hotkeys(self) -> None:
+        """Register Win32 hotkeys against the post-show stable HWND."""
+        self._hotkey_mgr.register(
+            self.settings.hotkey_start,
+            self.settings.hotkey_quit,
+            hwnd=int(self.winId()),
+            hotkey_dev_panel=self.settings.hotkey_dev_panel,
+        )
 
     @Slot(bool)
     def _on_hotkeys_toggled(self, enabled: bool) -> None:

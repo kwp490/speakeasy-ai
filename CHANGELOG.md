@@ -5,6 +5,13 @@ All notable changes to SpeakEasy AI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] - Hotkey Registration Fix for Frozen Builds
+
+### Fixed
+- **Global hotkeys not registering in frozen (PyInstaller) builds**: deferred Win32 `RegisterHotKey` by one event-loop tick via `QTimer.singleShot(0)` so the native HWND is stable after `show()`. Qt can recreate the window handle during `show()` in frozen builds, silently invalidating any hotkey registered earlier in `__init__`.
+
+---
+
 ## [0.7.0] - Status Pill Bar, SVG Icons & UI Consistency
 
 ### Added
