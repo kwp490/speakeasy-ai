@@ -184,7 +184,7 @@ class TestCohereSetupLauncher(unittest.TestCase):
         self.assertEqual(rc, 42)
         shell_execute.assert_called_once_with(
             None,
-            "runas",
+            "open",
             "powershell.exe",
             f'-NoProfile -ExecutionPolicy Bypass -File "{script}" -TargetDir "{target_dir}"',
             str(script.parent),

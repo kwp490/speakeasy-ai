@@ -1645,8 +1645,8 @@ class MainWindow(QMainWindow):
             return False
 
     def _run_cohere_setup_script(self) -> bool:
-        """Launch ``cohere-model-setup.ps1`` elevated and return True if
-        the model is present afterwards."""
+        """Launch ``cohere-model-setup.ps1`` and return True if the model
+        is present afterwards."""
         from .model_downloader import (
             get_cohere_setup_script_candidates,
             launch_cohere_setup_script,

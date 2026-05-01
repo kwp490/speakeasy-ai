@@ -49,7 +49,7 @@ def find_cohere_setup_script() -> Path | None:
 def launch_cohere_setup_script(
     target_dir: str | None = None,
     *,
-    require_elevation: bool = True,
+    require_elevation: bool = False,
 ) -> int:
     """Launch the installed Cohere setup script via PowerShell.
 
