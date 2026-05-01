@@ -153,7 +153,7 @@ class TestDeveloperPanelResizing:
         panel._suppress_move_persist = True
         event = QResizeEvent(QSize(999, 999), QSize(480, 720))
         panel.resizeEvent(event)
-        assert settings.dev_panel_width == 480  # unchanged
+        assert settings.dev_panel_width == 600  # unchanged
 
 
 class TestDeveloperPanelSnapping:

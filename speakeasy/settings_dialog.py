@@ -70,6 +70,7 @@ class SettingsWidget(QWidget):
 
     def __init__(self, settings: Settings, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
+        self.setMinimumWidth(500)
         self.settings = settings
         self._snapshot = self._take_snapshot()
         self._build_ui()

@@ -1354,6 +1354,18 @@ class MainWindow(QMainWindow):
         self._resume_mic_stream_after_processing()
         ts = datetime.datetime.now().strftime("%H:%M:%S")
         self._set_dictation_state(DictationState.ERROR)
+
+        # Detect CUDA errors and trigger automatic model reload so the next
+        # transcription attempt has a clean GPU context.
+        is_cuda_error = any(s in err for s in (
+            "CUDA error", "AcceleratorError", "cudaError",
+        ))
+        if is_cuda_error and self._engine is not None and self._engine.is_loaded:
+            self._log_ui("CUDA error detected — reloading model to recover…", error=True)
+            self._add_history(ts, "CUDA error — reloading model…", success=False)
+            self._on_reload_model()
+            return
+
         self._log_ui(f"Transcription error: {err}", error=True)
         self._add_history(ts, f"Error: {err}", success=False)
         QTimer.singleShot(
@@ -1482,29 +1494,14 @@ class MainWindow(QMainWindow):
 
     @Slot()
     def _on_open_settings(self) -> None:
-        from .settings_dialog import SettingsDialog
+        """Open the Developer Panel on the Settings tab."""
+        from .developer_panel import TAB_SETTINGS
 
-        old_model_path = self.settings.model_path
-        old_device = self.settings.device
-
-        dlg = SettingsDialog(self.settings, parent=self)
-        if dlg.exec() == SettingsDialog.DialogCode.Accepted:
-            self._apply_settings()
-
-            # If model path or device changed, prompt to reload
-            if (
-                self.settings.model_path != old_model_path
-                or self.settings.device != old_device
-            ):
-                reply = QMessageBox.question(
-                    self,
-                    "Reload Model?",
-                    "Model path or device changed. Reload model now?",
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                    QMessageBox.StandardButton.Yes,
-                )
-                if reply == QMessageBox.StandardButton.Yes:
-                    self._on_reload_model()
+        if self._dev_panel is None:
+            self._on_toggle_dev_panel()
+        if self._dev_panel is not None:
+            self._dev_panel.show_snapped()
+            self._dev_panel.activate_tab(TAB_SETTINGS)
 
     def _on_toggle_dev_panel(self) -> None:
         """Show or hide the Developer Panel; create it lazily."""
@@ -1954,6 +1951,24 @@ class MainWindow(QMainWindow):
             self._log_ui("Microphone stream re-opened after resume")
         except Exception as exc:
             self._log_ui(f"Microphone error after resume: {exc}", error=True)
+
+        # Proactive CUDA health check: after sleep/wake the GPU context can
+        # be silently corrupted, causing "CUDA error: unknown error" on the
+        # next transcription.  A small allocation test catches this early and
+        # triggers a model reload before the user hits the error.
+        if (
+            self._engine is not None
+            and self._engine.is_loaded
+            and self._actual_engine_device() == "cuda"
+        ):
+            try:
+                import torch
+                _probe = torch.zeros(1, device="cuda")
+                del _probe
+            except Exception:
+                log.warning("CUDA health check failed after resume — reloading model")
+                self._log_ui("CUDA context lost after sleep — reloading model…", error=True)
+                self._on_reload_model()
 
     # ═════════════════════════════════════════════════════════════════════════
     # CLEANUP

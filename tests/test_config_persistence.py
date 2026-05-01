@@ -21,8 +21,8 @@ class TestDevPanelFieldDefaults:
     def test_dev_panel_active_tab_default_settings(self):
         assert Settings().dev_panel_active_tab == "settings"
 
-    def test_dev_panel_width_default_480(self):
-        assert Settings().dev_panel_width == 480
+    def test_dev_panel_width_default_600(self):
+        assert Settings().dev_panel_width == 600
 
     def test_dev_panel_height_default_720(self):
         assert Settings().dev_panel_height == 720
@@ -73,7 +73,7 @@ class TestForwardCompat:
         # New fields get defaults
         assert loaded.dev_panel_open is False
         assert loaded.dev_panel_active_tab == "settings"
-        assert loaded.dev_panel_width == 480
+        assert loaded.dev_panel_width == 600
         assert loaded.dev_panel_height == 720
         assert loaded.dev_panel_snapped is True
         assert loaded.hotkey_dev_panel == "ctrl+alt+d"
@@ -90,7 +90,12 @@ class TestDevPanelValidation:
     def test_validate_clamps_undersized_width(self):
         s = Settings(dev_panel_width=10)
         s.validate()
-        assert s.dev_panel_width == 480
+        assert s.dev_panel_width == 600
+
+    def test_validate_clamps_legacy_width_480(self):
+        s = Settings(dev_panel_width=480)
+        s.validate()
+        assert s.dev_panel_width == 600
 
     def test_validate_clamps_undersized_height(self):
         s = Settings(dev_panel_height=10)

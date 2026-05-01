@@ -563,7 +563,7 @@ class DeveloperPanel(QWidget):
         self._build_ui()
         self._wire_signals()
         self.resize(settings.dev_panel_width, settings.dev_panel_height)
-        self.setMinimumWidth(320)
+        self.setMinimumWidth(540)
         self.setMaximumWidth(800)
 
     # ── UI ────────────────────────────────────────────────────────────────────
